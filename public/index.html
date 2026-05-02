@@ -183,7 +183,8 @@ body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradie
 </div>
 <div id="s-load" class="screen">
   <canvas id="lc"></canvas>
-  <div class="lu"><div class="lb">Lumon Industries</div><div class="lt">Employee Terminal</div><div class="ll"></div><div class="lh" id="lhint">initializing severed floor access</div></div>
+  <div class="lu"><div class="lb">Lumon Industries</div><div class="lt">Employee Terminal</div><div class="ll"></div><div class="lh" id="lhint">initializing severed floor access</div>
+    <div style="font-size:8px;letter-spacing:.2em;color:#1e3a50;margin-top:10px;">Click anywhere to skip ahead</div></div>
   <div class="lp"><div class="lpt"><div class="lpf" id="lfill"></div></div><div class="lpc" id="lpct">000%</div></div>
   <div id="lcur"></div>
 </div>
@@ -233,8 +234,6 @@ body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradie
     <button class="vtb vtfp" id="btn-fp" onclick="setView('fp')">First Person</button>
   </div>
   <div id="iso-controls">
-    <button class="iso-cb" onclick="isoZoom(1.25)" title="Zoom In">＋</button>
-    <button class="iso-cb" onclick="isoZoom(0.8)" title="Zoom Out">－</button>
     <button class="iso-cb" onclick="isoReset()" title="Reset View">⊙</button>
     <div class="iso-sep"></div>
     <button class="iso-cb" onclick="isoRotate(-1)" title="Rotate Left">↺</button>
@@ -265,6 +264,7 @@ body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradie
     <div class="hudb"><div class="bfloors" id="bfloors"></div></div>
   </div>
   <div id="ctrlhint">WASD · Arrow Keys to move · Click tile · Click floor to travel</div>
+  <div id="fp-hint" style="position:fixed;bottom:60px;left:50%;transform:translateX(-50%);font-size:9px;letter-spacing:.2em;color:rgba(200,220,232,.7);z-index:201;pointer-events:none;opacity:0;transition:opacity .5s;white-space:nowrap;">Click to capture mouse · WASD to move · ESC to release</div>
   <div id="sensor"></div>
   <div id="fbanner"><div class="fbcode" id="fbcode"></div><div class="fbname" id="fbname"></div></div>
   <div id="adeny"></div>
@@ -308,10 +308,11 @@ document.addEventListener("DOMContentLoaded",function(){
   function resize(){W=cv.width=innerWidth;H=cv.height=innerHeight;cells=[];const c=Math.ceil(W/G)+1,r=Math.ceil(H/G)+1;for(let i=0;i<r;i++)for(let j=0;j<c;j++)cells.push({x:j*G,y:i*G,v:D[Math.floor(Math.random()*10)],t:Math.random()*3000,a:.05+Math.random()*.1});}
   function draw(ts){raf=requestAnimationFrame(draw);ctx.clearRect(0,0,W,H);cells.forEach(c=>{if(ts-c.t>600+Math.random()*2200){c.v=D[Math.floor(Math.random()*10)];c.t=ts;}const d=Math.hypot(mx-c.x,my-c.y);let sc=1,al=c.a;if(d<R){const t=1-d/R;sc=1+t*3.2;al=Math.min(c.a+t*.78,.9);}ctx.font=`${Math.round(11*sc)}px 'Courier New',monospace`;ctx.fillStyle=`rgba(190,215,235,${al})`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(c.v,c.x,c.y);});if(!done){prog=Math.min(prog+.32,100);fill.style.width=prog+'%';pct.textContent=String(Math.floor(prog)).padStart(3,'0')+'%';if(prog>=100){done=true;hint.textContent='click · press any key · or wait';hint.style.color='#3a7abf';setTimeout(()=>{if(!gone)trig();},4000);}}}
   function trig(){if(gone)return;gone=true;cancelAnimationFrame(raf);go('s-load','s-boot');setTimeout(runBoot,100);}
+  function skipAhead(){prog=100;fill.style.width='100%';pct.textContent='100%';done=true;hint.textContent='click · press any key · or wait';hint.style.color='#3a7abf';}
   addEventListener('mousemove',e=>{mx=e.clientX;my=e.clientY;cur.style.left=mx+'px';cur.style.top=my+'px';cur.style.opacity='1';});
   addEventListener('mouseleave',()=>{mx=-9e4;my=-9e4;cur.style.opacity='0';});
-  $('s-load').addEventListener('click',()=>{if(done)trig();});
-  addEventListener('keydown',()=>{if(done&&!gone)trig();});
+  $('s-load').addEventListener('click',()=>{if(!done)skipAhead();else trig();});
+  addEventListener('keydown',()=>{if(!done)skipAhead();else if(!gone)trig();});
   addEventListener('resize',resize);
   resize();requestAnimationFrame(draw);
 })();
@@ -703,43 +704,115 @@ function renderIso(){
 }
 
 // ═══════ FIRST PERSON ═══════
-let r3,sc3,cam3,clk3,fpRaf,fpK={};
+let r3=null,sc3,cam3,clk3,fpK={},fpRunning=false,fpMouseBound=false;
+
 function initFP(){
-  if(r3)return;
+  if(r3)return; // already initialised
   const cv=$('fp-canvas');
-  r3=new THREE.WebGLRenderer({canvas:cv,antialias:true});
-  r3.setSize(innerWidth,innerHeight);r3.setPixelRatio(Math.min(devicePixelRatio,2));
-  sc3=new THREE.Scene();sc3.background=new THREE.Color(0xf0ece4);sc3.fog=new THREE.Fog(0xf0ece4,12,40);
-  clk3=new THREE.Clock();cam3=new THREE.PerspectiveCamera(72,innerWidth/innerHeight,.1,100);cam3.position.set(0,1.65,4);
-  sc3.add(new THREE.AmbientLight(0xf8f4ec,.75));
-  const dl=new THREE.DirectionalLight(0xfff8f0,.5);dl.position.set(2,8,4);sc3.add(dl);
-  const fm=new THREE.MeshLambertMaterial({color:0x5a8a6e}),cm=new THREE.MeshLambertMaterial({color:0xf0ece4}),wm=new THREE.MeshLambertMaterial({color:0xe8e4dc});
-  const fl=new THREE.Mesh(new THREE.PlaneGeometry(20,20),fm);fl.rotation.x=-Math.PI/2;sc3.add(fl);
-  const ce=new THREE.Mesh(new THREE.PlaneGeometry(20,20),cm);ce.rotation.x=Math.PI/2;ce.position.y=3.4;sc3.add(ce);
-  [[0,1.7,-7,0],[0,1.7,7,Math.PI],[7,1.7,0,-Math.PI/2],[-7,1.7,0,Math.PI/2]].forEach(([x,y,z,ry])=>{const w=new THREE.Mesh(new THREE.PlaneGeometry(14,3.4),wm);w.position.set(x,y,z);w.rotation.y=ry;sc3.add(w);});
-  [[-1,0,0],[2,0,1.5],[-2,0,-1.5],[1,0,-2]].forEach(([x,y,z])=>{
-    const dm=new THREE.MeshLambertMaterial({color:0xc8c4c0}),lm=new THREE.MeshLambertMaterial({color:0x909088});
-    const dk=new THREE.Mesh(new THREE.BoxGeometry(1.3,.05,.65),dm);dk.position.set(x,.7,z);sc3.add(dk);
-    [[-0.55,.35,-.27],[.55,.35,-.27],[-.55,.35,.27],[.55,.35,.27]].forEach(([lx,ly,lz])=>{const l=new THREE.Mesh(new THREE.BoxGeometry(.05,.7,.05),lm);l.position.set(x+lx,y+ly,z+lz);sc3.add(l);});
-    const mn=new THREE.Mesh(new THREE.BoxGeometry(.45,.38,.04),new THREE.MeshBasicMaterial({color:0x181e26}));mn.position.set(x,.93,z-.27);sc3.add(mn);
-    const ms=new THREE.Mesh(new THREE.BoxGeometry(.39,.32,.01),new THREE.MeshBasicMaterial({color:0x263444}));ms.position.set(x,.93,z-.258);sc3.add(ms);
+  cv.width=innerWidth;cv.height=innerHeight;
+  r3=new THREE.WebGLRenderer({canvas:cv,antialias:true,alpha:false});
+  r3.setSize(innerWidth,innerHeight);
+  r3.setPixelRatio(Math.min(devicePixelRatio,2));
+  r3.setClearColor(0xf0ece4,1);
+
+  sc3=new THREE.Scene();
+  sc3.background=new THREE.Color(0xf0ece4);
+  sc3.fog=new THREE.Fog(0xf0ece4,15,45);
+
+  clk3=new THREE.Clock();
+  cam3=new THREE.PerspectiveCamera(70,innerWidth/innerHeight,0.1,100);
+  cam3.position.set(0,1.65,5);
+  cam3.rotation.order='YXZ'; // important: yaw first
+
+  // Lights
+  sc3.add(new THREE.AmbientLight(0xf8f4ec,0.8));
+  const dl=new THREE.DirectionalLight(0xfff8f0,0.6);
+  dl.position.set(5,10,5);sc3.add(dl);
+
+  // Materials
+  const carpetM=new THREE.MeshLambertMaterial({color:0x5a8a6e});
+  const ceilM=new THREE.MeshLambertMaterial({color:0xf0ece4,side:THREE.BackSide});
+  const wallM=new THREE.MeshLambertMaterial({color:0xe8e4dc,side:THREE.FrontSide});
+
+  // Floor
+  const floor=new THREE.Mesh(new THREE.PlaneGeometry(24,24),carpetM);
+  floor.rotation.x=-Math.PI/2;sc3.add(floor);
+
+  // Ceiling (BackSide so we see it from inside)
+  const ceil=new THREE.Mesh(new THREE.PlaneGeometry(24,24),ceilM);
+  ceil.rotation.x=-Math.PI/2;ceil.position.y=3.6;sc3.add(ceil);
+
+  // Walls — use BoxGeometry so we always see them from inside
+  const wallGeo=new THREE.BoxGeometry(0.1,3.6,24);
+  [[-8,1.8,0],[8,1.8,0]].forEach(([x,y,z])=>{
+    const w=new THREE.Mesh(wallGeo,wallM);w.position.set(x,y,z);sc3.add(w);
   });
-  const lm=new THREE.MeshBasicMaterial({color:0xfff8f0});
-  [[-2,3.38,0],[2,3.38,0],[0,3.38,-2],[0,3.38,2]].forEach(([x,y,z])=>{sc3.add(Object.assign(new THREE.Mesh(new THREE.BoxGeometry(1.4,.04,.26),lm),{position:new THREE.Vector3(x,y,z)}));const pl=new THREE.PointLight(0xfff8f0,.45,8);pl.position.set(x,3,z);sc3.add(pl);});
-  const ck=new THREE.Mesh(new THREE.CircleGeometry(.28,16),new THREE.MeshBasicMaterial({color:0x888480}));ck.position.set(0,2.7,-6.9);sc3.add(ck);
-  renderFP();
+  const wallGeo2=new THREE.BoxGeometry(24,3.6,0.1);
+  [[0,1.8,-8],[0,1.8,8]].forEach(([x,y,z])=>{
+    const w=new THREE.Mesh(wallGeo2,wallM);w.position.set(x,y,z);sc3.add(w);
+  });
+
+  // Ceiling light strips
+  const lightM=new THREE.MeshBasicMaterial({color:0xfff8f0});
+  [[-2,3.55,0],[2,3.55,0],[0,3.55,-2],[0,3.55,2]].forEach(([x,y,z])=>{
+    sc3.add(Object.assign(new THREE.Mesh(new THREE.BoxGeometry(1.8,0.05,0.3),lightM),{position:new THREE.Vector3(x,y,z)}));
+    const pt=new THREE.PointLight(0xfff8f0,0.6,10);pt.position.set(x,3.2,z);sc3.add(pt);
+  });
+
+  // Desks
+  [[-1.5,0,0],[1.5,0,0.5],[-1.5,0,-2.5],[2,0,-2]].forEach(([x,y,z])=>buildDesk(x,y,z));
+
+  // Clock on far wall
+  const clkM=new THREE.MeshBasicMaterial({color:0x888480});
+  const clkFace=new THREE.Mesh(new THREE.CircleGeometry(0.3,24),clkM);
+  clkFace.position.set(0,2.8,-7.9);sc3.add(clkFace);
+
+  // Start FP render loop
+  fpRunning=true;
+  fpLoop();
 }
-function renderFP(){
-  fpRaf=requestAnimationFrame(renderFP);
-  if(!clk3||S.view!=='fp')return;
-  const d=clk3.getDelta(),sp=4;
-  const f=new THREE.Vector3(-Math.sin(cam3.rotation.y),0,-Math.cos(cam3.rotation.y));
-  const r=new THREE.Vector3(Math.cos(cam3.rotation.y),0,-Math.sin(cam3.rotation.y));
-  if(fpK['KeyW']||fpK['ArrowUp'])cam3.position.addScaledVector(f,sp*d);
-  if(fpK['KeyS']||fpK['ArrowDown'])cam3.position.addScaledVector(f,-sp*d);
-  if(fpK['KeyA']||fpK['ArrowLeft'])cam3.position.addScaledVector(r,-sp*d);
-  if(fpK['KeyD']||fpK['ArrowRight'])cam3.position.addScaledVector(r,sp*d);
-  cam3.position.y=1.65;cam3.position.x=Math.max(-6,Math.min(6,cam3.position.x));cam3.position.z=Math.max(-6,Math.min(6,cam3.position.z));
+
+function buildDesk(x,y,z){
+  const deskM=new THREE.MeshLambertMaterial({color:0xc8c4bc});
+  const legM=new THREE.MeshLambertMaterial({color:0x909088});
+  // top
+  const dt=new THREE.Mesh(new THREE.BoxGeometry(1.4,0.05,0.7),deskM);
+  dt.position.set(x,0.7,z);sc3.add(dt);
+  // legs
+  [[-0.6,0.35,-0.3],[0.6,0.35,-0.3],[-0.6,0.35,0.3],[0.6,0.35,0.3]].forEach(([lx,ly,lz])=>{
+    const l=new THREE.Mesh(new THREE.BoxGeometry(0.06,0.7,0.06),legM);
+    l.position.set(x+lx,y+ly,z+lz);sc3.add(l);
+  });
+  // monitor
+  const monM=new THREE.MeshBasicMaterial({color:0x181e26});
+  const scrM=new THREE.MeshBasicMaterial({color:0x2a4060});
+  const mon=new THREE.Mesh(new THREE.BoxGeometry(0.5,0.4,0.05),monM);
+  mon.position.set(x,0.94,z-0.3);sc3.add(mon);
+  const scr=new THREE.Mesh(new THREE.BoxGeometry(0.44,0.34,0.01),scrM);
+  scr.position.set(x,0.94,z-0.278);sc3.add(scr);
+  // chair
+  const chairM=new THREE.MeshLambertMaterial({color:0x3a3a44});
+  const seat=new THREE.Mesh(new THREE.CylinderGeometry(0.28,0.28,0.07,10),chairM);
+  seat.position.set(x+0.1,0.44,z+0.55);sc3.add(seat);
+  const back=new THREE.Mesh(new THREE.BoxGeometry(0.46,0.44,0.07),chairM);
+  back.position.set(x+0.1,0.72,z+0.55);sc3.add(back);
+}
+
+function fpLoop(){
+  if(!fpRunning)return;
+  requestAnimationFrame(fpLoop);
+  if(!clk3||S.view!=='fp'){r3&&r3.render(sc3,cam3);return;}
+  const d=Math.min(clk3.getDelta(),0.05);
+  const sp=4;
+  const fwd=new THREE.Vector3(-Math.sin(cam3.rotation.y),0,-Math.cos(cam3.rotation.y));
+  const rgt=new THREE.Vector3(Math.cos(cam3.rotation.y),0,-Math.sin(cam3.rotation.y));
+  if(fpK['KeyW']||fpK['ArrowUp'])cam3.position.addScaledVector(fwd,sp*d);
+  if(fpK['KeyS']||fpK['ArrowDown'])cam3.position.addScaledVector(fwd,-sp*d);
+  if(fpK['KeyA']||fpK['ArrowLeft'])cam3.position.addScaledVector(rgt,-sp*d);
+  if(fpK['KeyD']||fpK['ArrowRight'])cam3.position.addScaledVector(rgt,sp*d);
+  cam3.position.y=1.65;
+  cam3.position.x=Math.max(-7,Math.min(7,cam3.position.x));
+  cam3.position.z=Math.max(-7,Math.min(7,cam3.position.z));
   r3.render(sc3,cam3);
 }
 
@@ -747,11 +820,40 @@ function renderFP(){
 function setView(mode){
   S.view=mode;
   const ic=$('iso-canvas'),fc=$('fp-canvas'),bi=$('btn-iso'),bf=$('btn-fp'),ci=$('ci-iso'),cf=$('ci-fp');
-  if(mode==='iso'){ic.style.display='block';fc.style.display='none';bi.classList.add('vta');bf.classList.remove('vta');ci.classList.add('act');cf.classList.remove('act');$('iso-controls').style.display='flex';}
-  else{ic.style.display='none';fc.style.display='block';bi.classList.remove('vta');bf.classList.add('vta');ci.classList.remove('act');cf.classList.add('act');$('iso-controls').style.display='none';
-    if(!r3)initFP();
-    fc.addEventListener('mousemove',e=>{if(document.pointerLockElement===fc)cam3.rotation.y-=e.movementX*.002;});
-    fc.onclick=()=>fc.requestPointerLock();}
+  if(mode==='iso'){
+    ic.style.display='block';fc.style.display='none';
+    bi.classList.add('vta');bf.classList.remove('vta');
+    ci.classList.add('act');cf.classList.remove('act');
+    $('iso-controls').style.display='flex';
+  } else {
+    ic.style.display='none';fc.style.display='block';
+    bi.classList.remove('vta');bf.classList.add('vta');
+    ci.classList.remove('act');cf.classList.add('act');
+    $('iso-controls').style.display='none';
+    if(!r3){
+      initFP();
+    } else {
+      // already init — just make sure loop is running and resize
+      r3.setSize(innerWidth,innerHeight);
+      cam3.aspect=innerWidth/innerHeight;
+      cam3.updateProjectionMatrix();
+      fpRunning=true;
+    }
+    // Bind mouse look once only
+    if(!fpMouseBound){
+      fpMouseBound=true;
+      fc.addEventListener('mousemove',e=>{
+        if(document.pointerLockElement===fc){
+          cam3.rotation.y-=e.movementX*0.002;
+          cam3.rotation.x=Math.max(-Math.PI*0.45,Math.min(Math.PI*0.45,cam3.rotation.x-e.movementY*0.002));
+        }
+      });
+      fc.addEventListener('click',()=>fc.requestPointerLock());
+    }
+    // Show pointer lock hint
+    const hint=$('fp-hint');
+    if(hint){hint.style.opacity='1';setTimeout(()=>hint.style.opacity='0',3000);}
+  }
 }
 
 // ═══════ ISO CONTROLS ═══════
@@ -1093,7 +1195,7 @@ async function initGame(){
     if(!placed){outer2:for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){if(grid[r]?.[c]!==undefined){S.px={x:c,y:r};S.sm={x:c,y:r};break outer2;}}}
   }
   setupHUD();setupInput();
-  function resize(){const c=$('iso-canvas');c.width=innerWidth;c.height=innerHeight;iW=innerWidth;iH=innerHeight;setOff();if(r3){r3.setSize(innerWidth,innerHeight);cam3.aspect=innerWidth/innerHeight;cam3.updateProjectionMatrix();}}
+  function resize(){const c=$('iso-canvas');c.width=innerWidth;c.height=innerHeight;iW=innerWidth;iH=innerHeight;setOff();if(r3&&cam3){r3.setSize(innerWidth,innerHeight);cam3.aspect=innerWidth/innerHeight;cam3.updateProjectionMatrix();}}
   addEventListener('resize',resize);
   iCtx=$('iso-canvas').getContext('2d');
   resize();setView('iso');renderIso();showBan(S.fi);
