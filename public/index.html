@@ -165,6 +165,7 @@ body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradie
 @keyframes blink{0%,100%{opacity:.25}50%{opacity:1}}
 @keyframes fin{to{opacity:1}}
 @keyframes cspin{from{stroke-dashoffset:220}to{stroke-dashoffset:0}}
+#elv-popup div[onclick]:hover{background:rgba(30,60,100,.4)!important;}
 </style>
 </head>
 <body>
@@ -280,7 +281,7 @@ const CHARS=[
 const Tcls={1:'t1',2:'t2',4:'t4',5:'t5'};
 
 // ═══════ STATE ═══════
-const S={char:null,floors:[],cf:{},fi:0,curRoom:null,visited:new Set(),view:'iso',cardOpen:false,crData:null,px:{x:0,y:0},sm:{x:0,y:0},wt:0,keys:{},zoom:1,rotAngle:0,drag:{active:false,startX:0,startAngle:0}};
+const S={char:null,floors:[],cf:{},fi:0,curRoom:null,visited:new Set(),view:'iso',cardOpen:false,crData:null,px:{x:0,y:0},sm:{x:0,y:0},wt:0,keys:{},zoom:1,rotAngle:0,pan:{x:0,y:0},drag:{active:false,startX:0,startY:0,startPanX:0,startPanY:0,dist:0}};
 const $=id=>document.getElementById(id);
 function go(a,b){$(a).classList.add('off');setTimeout(()=>{$(a).classList.add('gone');$(b).classList.remove('gone');requestAnimationFrame(()=>$(b).classList.remove('off'));},900);}
 
@@ -394,18 +395,19 @@ const P={
   dof:'#807c78',dop:'#bcb8b4',doo:'#989490',son:'#3a9a5c',sof:'#9a3a3a',
   cf:'#bcb8b4',cw:'#ccc8c4',
   ef:'#14141c',ew:'#0c0c14',
+  elv:'#1a1e28',elvd:'#2a3040',elvl:'#3a4a6a',elvg:'#5a7abf',elvb:'#0a0e18',
   gl:['#e8334a','#f5a623','#4a9ae8','#e833e8','#33e8a0','#f5e623','#e87833','#a033e8']
 };
 let iCtx,iW,iH,iOX,iOY,iRaf;
 
-function g2s(gx,gy){
-  const z=S.zoom, ra=S.rotAngle;
-  const ix=(gx-gy)*(TW/2), iy=(gx+gy)*(TH/2);
-  const rx=ix*Math.cos(ra)-iy*Math.sin(ra)*0.3;
-  const ry=ix*Math.sin(ra)*0.3+iy*Math.cos(ra);
-  return{x:iOX+rx*z, y:iOY+ry*z};
+// Raw iso coords (no zoom/pan — those are applied via ctx transform in renderIso)
+function g2s(gx,gy){return{x:(gx-gy)*(TW/2), y:(gx+gy)*(TH/2)};}
+function s2g(sx,sy){
+  // invert canvas transform: translate(iOX+pan.x, iOY+pan.y) scale(zoom)
+  const rx=(sx-(iOX+S.pan.x))/S.zoom;
+  const ry=(sy-(iOY+S.pan.y))/S.zoom;
+  return{x:Math.floor((rx/(TW/2)+ry/(TH/2))/2),y:Math.floor((ry/(TH/2)-rx/(TW/2))/2)};
 }
-function s2g(sx,sy){const rx=sx-iOX,ry=sy-iOY;return{x:Math.floor((rx/(TW/2)+ry/(TH/2))/2),y:Math.floor((ry/(TH/2)-rx/(TW/2))/2)};}
 function buildGrid(floor){
   const rooms=floor.rooms||[];let mR=0,mC=0;
   rooms.forEach(r=>{mR=Math.max(mR,r.layout_row);mC=Math.max(mC,r.layout_col);});
@@ -451,6 +453,34 @@ function drawRoom(ctx,room,gx,gy,connE,connS){
   if(room===undefined)return;
   const{x:sx,y:sy}=g2s(gx,gy);
   const isCur=room&&room.id===S.curRoom?.id;
+
+  if(room.type==='elevator'){
+    // Elevator shaft — dark steel tile
+    isoTop(ctx,sx,sy,P.elvb);
+    isoLeft(ctx,sx,sy,P.elv,WH);
+    isoRight(ctx,sx,sy,P.elvd,WH);
+    // elevator door on front face — two panels with a center seam
+    const{x:ex,y:ey}=g2s(gx,gy);
+    const edx=ex+TW*.05,edy=ey+TH*.42;
+    const edw=TW*.4,edh=WH*.7;
+    // left door panel
+    ctx.fillStyle=P.elvl;
+    ctx.beginPath();ctx.moveTo(edx,edy);ctx.lineTo(edx,edy-edh);ctx.lineTo(edx+edw*.9*.5,edy-edh+edw*.45*.5);ctx.lineTo(edx+edw*.9*.5,edy+edw*.45*.5);ctx.closePath();ctx.fill();
+    // right door panel (right face)
+    ctx.fillStyle=P.elvg;
+    ctx.beginPath();ctx.moveTo(ex+TW*.55,ey+TH*.35);ctx.lineTo(ex+TW*.55,ey+TH*.35-edh);ctx.lineTo(ex+TW*.9,ey+TH*.35-edh+TH*.27);ctx.lineTo(ex+TW*.9,ey+TH*.35+TH*.27);ctx.closePath();ctx.fill();
+    // glowing call button
+    ctx.fillStyle='#5a9abf';ctx.beginPath();ctx.arc(ex+TW*.23,ey-WH*.3,3,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='rgba(90,154,191,.4)';ctx.beginPath();ctx.arc(ex+TW*.23,ey-WH*.3,6,0,Math.PI*2);ctx.fill();
+    // floor number display
+    ctx.fillStyle='rgba(0,0,0,.7)';ctx.fillRect(ex+TW*.12,ey-WH*.55,TW*.2,TH*.22);
+    ctx.fillStyle='#5a9abf';ctx.font='bold 7px monospace';ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText(`F${S.fi+1}`,ex+TW*.22,ey-WH*.44);
+    // "ELEVATOR" label
+    ctx.fillStyle='rgba(90,154,191,.7)';ctx.font='5px monospace';ctx.textAlign='center';
+    ctx.fillText('ELEVATOR',ex+TW*.5,ey-WH*.75);
+    return;
+  }
 
   if(!room||room.type==='empty'){
     isoTop(ctx,sx,sy,P.ef);
@@ -615,6 +645,11 @@ function renderIso(){
   S.sm.y+=(S.px.y-S.sm.y)*.14;
   if(Math.abs(S.px.x-S.sm.x)>.01||Math.abs(S.px.y-S.sm.y)>.01)S.wt+=.13;
 
+  // Apply zoom + pan via canvas transform — everything inside scales correctly
+  ctx.save();
+  ctx.translate(iOX+S.pan.x, iOY+S.pan.y);
+  ctx.scale(S.zoom, S.zoom);
+
   // Painter's algo — draw by diagonal sum
   for(let sum=0;sum<rows+cols;sum++){
     for(let gy=0;gy<rows;gy++){
@@ -632,6 +667,7 @@ function renderIso(){
     if(sum===Math.round(S.sm.x+S.sm.y))sprite(ctx,S.sm.x,S.sm.y);
   }
 
+  ctx.restore();
   iRaf=requestAnimationFrame(renderIso);
 }
 
@@ -733,7 +769,19 @@ function updFMap(){
       const rx=pad+c*cellW, ry=pad+r*cellH;
       const rw=cellW-1, rh=cellH-1;
 
-      if(!room||room.type==='empty'){
+      if(room&&room.type==='elevator'){
+        // elevator — dark steel with blue accent
+        ctx.fillStyle='#0a0e18';ctx.fillRect(rx,ry,rw,rh);
+        ctx.fillStyle='#1a2a4a';ctx.fillRect(rx+1,ry+1,rw-2,rh-2);
+        // door seam
+        ctx.strokeStyle='#3a6abf';ctx.lineWidth=1;
+        ctx.beginPath();ctx.moveTo(rx+rw*.5,ry+2);ctx.lineTo(rx+rw*.5,ry+rh-2);ctx.stroke();
+        // call button glow
+        ctx.fillStyle='#5a9abf';ctx.beginPath();ctx.arc(rx+rw*.2,ry+rh*.5,2,0,Math.PI*2);ctx.fill();
+        // "E" label
+        ctx.fillStyle='#3a6abf';ctx.font='bold 7px monospace';ctx.textAlign='center';ctx.textBaseline='middle';
+        ctx.fillText('E',rx+rw*.5,ry+rh*.5);
+      } else if(!room||room.type==='empty'){
         // glitch color for empty
         ctx.globalAlpha=0.5;
         ctx.fillStyle=P.gl[(r*cols+c)%P.gl.length];
@@ -847,7 +895,12 @@ function goFloor(idx){
     S.fi=idx;S.curRoom=null;
     const fl=S.floors[idx];if(!fl)return;
     const{grid,rows,cols}=buildGrid(fl);
-    outer:for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){if(grid[r]?.[c]!==undefined){S.px={x:c,y:r};S.sm={x:c,y:r};break outer;}}
+    // Start at elevator on new floor
+    let placed=false;
+    outer:for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){
+      if(grid[r]?.[c]?.type==='elevator'){S.px={x:c,y:r};S.sm={x:c,y:r};placed=true;break outer;}
+    }
+    if(!placed){outer2:for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){if(grid[r]?.[c]!==undefined){S.px={x:c,y:r};S.sm={x:c,y:r};break outer2;}}}
     setOff();updFMap();updBMap();showBan(idx);
   });
 }
@@ -860,6 +913,30 @@ function enterRoom(room){
   const s=$('sensor');s.style.opacity='1';setTimeout(()=>s.style.opacity='0',400);
   updFMap();
   if(room.type==='project'){openCard(room);}
+  if(room.type==='elevator'){showElevatorUI();}
+}
+function showElevatorUI(){
+  // Build accessible floor list for the elevator popup
+  const acc=S.cf[S.char.id]||[];
+  const opts=S.floors.filter(fl=>acc.includes(fl.id));
+  const existing=$('elv-popup');if(existing)existing.remove();
+  const pop=document.createElement('div');
+  pop.id='elv-popup';
+  pop.style.cssText='position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(8,15,26,.97);border:.5px solid #1e4a6a;border-radius:6px;padding:20px 24px;z-index:400;font-family:monospace;min-width:220px;';
+  pop.innerHTML=`<div style="font-size:9px;letter-spacing:.28em;color:#1e3a50;margin-bottom:14px;">ELEVATOR — SELECT FLOOR</div>`+
+    opts.map(fl=>{
+      const isCur=fl.id===S.floors[S.fi]?.id;
+      return `<div onclick="elvGo(${S.floors.findIndex(f=>f.id===fl.id)},this.closest('#elv-popup'))" style="padding:8px 10px;margin-bottom:4px;border:.5px solid ${isCur?'#3a8abf':'#1a3a55'};border-radius:3px;cursor:${isCur?'default':'pointer'};background:${isCur?'#0e2236':'transparent'};color:${isCur?'#7ac3e8':'#3a6a8a'};font-size:10px;letter-spacing:.1em;transition:background .2s;">
+        <span style="color:#1e3a50;margin-right:8px;">F${fl.id}</span>${fl.name}${isCur?' <span style="color:#3a8abf;font-size:8px;">← HERE</span>':''}
+      </div>`;
+    }).join('')+
+    `<div onclick="this.closest('#elv-popup').remove()" style="margin-top:10px;font-size:8px;letter-spacing:.18em;color:#1e3a50;cursor:pointer;text-align:center;">CLOSE</div>`;
+  document.body.appendChild(pop);
+}
+function elvGo(idx,popup){
+  if(idx===S.fi)return;
+  if(popup)popup.remove();
+  goFloor(idx);
 }
 function openCard(room){
   S.cardOpen=true;S.crData=room;
@@ -895,24 +972,27 @@ function setupInput(){
       S.px={x:nx,y:ny};const room=grid[ny][nx];if(room)enterRoom(room);updFMap();
     }
   },130);
-  // Click to move (only if not a drag)
+  // Drag to pan + click to move
   const ic=$('iso-canvas');
-  let dragDist=0;
   ic.addEventListener('mousedown',e=>{
     if(e.button!==0)return;
-    S.drag.active=true;S.drag.startX=e.clientX;S.drag.startAngle=S.rotAngle;dragDist=0;
+    S.drag.active=true;
+    S.drag.startX=e.clientX;S.drag.startY=e.clientY;
+    S.drag.startPanX=S.pan.x;S.drag.startPanY=S.pan.y;
+    S.drag.dist=0;
     ic.style.cursor='grabbing';
   });
   addEventListener('mousemove',e=>{
     if(!S.drag.active)return;
-    const dx=e.clientX-S.drag.startX;
-    dragDist=Math.abs(dx);
-    S.rotAngle=S.drag.startAngle+dx*0.008;
+    const dx=e.clientX-S.drag.startX, dy=e.clientY-S.drag.startY;
+    S.drag.dist=Math.sqrt(dx*dx+dy*dy);
+    S.pan.x=S.drag.startPanX+dx;
+    S.pan.y=S.drag.startPanY+dy;
   });
   addEventListener('mouseup',e=>{
     if(!S.drag.active)return;
     S.drag.active=false;ic.style.cursor='crosshair';
-    if(dragDist>6)return; // was a drag, not a click
+    if(S.drag.dist>6)return; // was a pan drag, not a click
     if(S.cardOpen)return;
     const rect=ic.getBoundingClientRect();
     const{x,y}=s2g(e.clientX-rect.left,e.clientY-rect.top);
@@ -920,11 +1000,19 @@ function setupInput(){
     const{grid,rows,cols}=buildGrid(fl);
     if(y>=0&&y<rows&&x>=0&&x<cols&&grid[y]?.[x]!==undefined){S.px={x,y};const room=grid[y][x];if(room)enterRoom(room);updFMap();}
   });
-  // Mouse wheel zoom
+  // Wheel: zoom centered on mouse position
   ic.addEventListener('wheel',e=>{
     e.preventDefault();
-    S.zoom=Math.max(0.4,Math.min(2.5,S.zoom-e.deltaY*0.001));
+    const rect=ic.getBoundingClientRect();
+    const mx=e.clientX-rect.left, my=e.clientY-rect.top;
+    const oldZ=S.zoom;
+    S.zoom=Math.max(0.35,Math.min(3.0,S.zoom*(1-e.deltaY*0.001)));
+    // Adjust pan so zoom is centered on mouse
+    S.pan.x=mx-(mx-S.pan.x-iOX)*(S.zoom/oldZ)-iOX+iOX;
+    S.pan.y=my-(my-S.pan.y-iOY)*(S.zoom/oldZ)-iOY+iOY;
   },{passive:false});
+  // Double-click to reset view
+  ic.addEventListener('dblclick',()=>{S.zoom=1;S.pan={x:0,y:0};});
 }
 
 // ═══════ FETCH ═══════
@@ -947,7 +1035,16 @@ async function initGame(){
   const acc=S.cf[S.char?.id]||[];
   S.fi=Math.max(0,(acc[0]||1)-1);
   const fl=S.floors[S.fi];
-  if(fl){const{grid,rows,cols}=buildGrid(fl);outer:for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){if(grid[r]?.[c]!==undefined){S.px={x:c,y:r};S.sm={x:c,y:r};break outer;}}}
+  if(fl){
+    const{grid,rows,cols}=buildGrid(fl);
+    // Try to start at elevator
+    let placed=false;
+    outer:for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){
+      if(grid[r]?.[c]?.type==='elevator'){S.px={x:c,y:r};S.sm={x:c,y:r};placed=true;break outer;}
+    }
+    // Fallback to first valid cell
+    if(!placed){outer2:for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){if(grid[r]?.[c]!==undefined){S.px={x:c,y:r};S.sm={x:c,y:r};break outer2;}}}
+  }
   setupHUD();setupInput();
   function resize(){const c=$('iso-canvas');c.width=innerWidth;c.height=innerHeight;iW=innerWidth;iH=innerHeight;setOff();if(r3){r3.setSize(innerWidth,innerHeight);cam3.aspect=innerWidth/innerHeight;cam3.updateProjectionMatrix();}}
   addEventListener('resize',resize);
@@ -960,6 +1057,7 @@ async function initGame(){
 const FCF={mark:[1,2,3],helly:[1],irving:[1,2,6],dylan:[1,4],milchick:[1,2,3,4,5,6],burt:[3,6],cobel:[1,2,3,4,5,6]};
 const FFL=[
   {id:1,name:'Data Engineering',code:'DE',color:'#1a4a6a',rooms:[
+    {id:90,type:'elevator',layout_row:0,layout_col:3,connection_type:'corridor'},
     {id:1,type:'project',title:'Kafka Pipeline',subtitle:'Streaming · 2024',description:'End-to-end streaming pipeline ingesting 2.4M events/day across 6 Kafka topics. Reduced latency from 4h to 90s.',tags:['Kafka','Snowflake','dbt','Python','Spark'],metrics:[{label:'Latency reduction',value:'97%'},{label:'Events/day',value:'2.4M'},{label:'Status',value:'Production'}],link:'#',github:'#',layout_row:0,layout_col:0,connection_type:'open'},
     {id:2,type:'project',title:'Databricks Migration',subtitle:'Cloud · 2024',description:'Migrated on-prem Hadoop to Databricks Delta Lake. Reduced infra cost 40% and query time 3x.',tags:['Databricks','Delta Lake','PySpark','Azure'],metrics:[{label:'Cost reduction',value:'40%'},{label:'Query speedup',value:'3x'},{label:'Status',value:'Production'}],link:'#',github:'#',layout_row:0,layout_col:1,connection_type:'corridor'},
     {id:3,type:'empty',layout_row:0,layout_col:2,connection_type:'none'},
@@ -968,27 +1066,32 @@ const FFL=[
     {id:6,type:'project',title:'dbt Transform Layer',subtitle:'Modeling · 2023',description:'Modular dbt project with 120+ models powering BI for 3 business units.',tags:['dbt','Snowflake','SQL','Jinja'],metrics:[{label:'dbt models',value:'120+'},{label:'Business units',value:'3'},{label:'Status',value:'Production'}],link:'#',github:'#',layout_row:1,layout_col:2,connection_type:'corridor'},
   ]},
   {id:2,name:'ML & AI',code:'ML',color:'#2a1a5a',rooms:[
+    {id:91,type:'elevator',layout_row:0,layout_col:2,connection_type:'corridor'},
     {id:7,type:'project',title:'LangGraph Agents',subtitle:'Agentic AI · 2025',description:'Multi-agent pipeline for automated document processing across 12 document types.',tags:['LangGraph','Python','OpenAI','Snowflake'],metrics:[{label:'Doc types',value:'12'},{label:'Accuracy',value:'94%'},{label:'Status',value:'Production'}],link:'#',github:'#',layout_row:0,layout_col:0,connection_type:'open'},
     {id:8,type:'project',title:'BERT Sentiment',subtitle:'NLP · 2024',description:'Fine-tuned BERT for domain-specific sentiment on financial news via FastAPI + MLflow.',tags:['BERT','MLflow','FastAPI','HuggingFace'],metrics:[{label:'F1 Score',value:'0.91'},{label:'Inference',value:'120ms'},{label:'Status',value:'Production'}],link:'#',github:'#',layout_row:0,layout_col:1,connection_type:'corridor'},
     {id:9,type:'empty',layout_row:1,layout_col:0,connection_type:'none'},
     {id:10,type:'project',title:'MLflow Tracker',subtitle:'MLOps · 2023',description:'Centralized ML experiment tracking with Databricks. 200+ experiments across 6 model families.',tags:['MLflow','Databricks','Python','Docker'],metrics:[{label:'Experiments',value:'200+'},{label:'Model families',value:'6'},{label:'Status',value:'Active'}],link:'#',github:'#',layout_row:1,layout_col:1,connection_type:'open'},
   ]},
   {id:3,name:'BI & Visualization',code:'BI',color:'#1a3a2a',rooms:[
+    {id:92,type:'elevator',layout_row:0,layout_col:2,connection_type:'corridor'},
     {id:11,type:'project',title:'Power BI Dashboard',subtitle:'BI · 2024',description:'Enterprise KPI dashboard for C-suite with real-time Snowflake. 14 pages, 200+ users.',tags:['Power BI','Snowflake','DAX','SQL'],metrics:[{label:'Report pages',value:'14'},{label:'Users',value:'200+'},{label:'Refresh',value:'Real-time'}],link:'#',github:'#',layout_row:0,layout_col:0,connection_type:'open'},
     {id:12,type:'empty',layout_row:0,layout_col:1,connection_type:'none'},
     {id:13,type:'project',title:'D3.js Wage Map',subtitle:'Visualization · 2024',description:'Interactive U.S. county choropleth with OFLC/OEWS wage data and SOC autocomplete.',tags:['D3.js','TopoJSON','JavaScript','HTML'],metrics:[{label:'Counties',value:'3,000+'},{label:'SOC codes',value:'800+'},{label:'Status',value:'Live'}],link:'#',github:'#',layout_row:1,layout_col:0,connection_type:'corridor'},
   ]},
   {id:4,name:'Tools & Automation',code:'TA',color:'#3a2a1a',rooms:[
+    {id:93,type:'elevator',layout_row:0,layout_col:2,connection_type:'corridor'},
     {id:14,type:'project',title:'n8n Resume Pipeline',subtitle:'Automation · 2025',description:'Automated job pipeline: LinkedIn scraper → Gemini rewriter → Google Docs → email digest.',tags:['n8n','Gemini API','Google Docs','Apify'],metrics:[{label:'Time saved',value:'2h/day'},{label:'Roles tracked',value:'50+'},{label:'Status',value:'Active'}],link:'#',github:'#',layout_row:0,layout_col:0,connection_type:'open'},
     {id:15,type:'project',title:'Instagram Archiver',subtitle:'Extension · 2024',description:'Firefox extension with MAIN-world fetch interceptor and blob-to-base64 CDN workaround.',tags:['JavaScript','WebExtensions','XPath','DOM'],metrics:[{label:'Posts archived',value:'1000+'},{label:'Version',value:'v0.4.2'},{label:'Status',value:'Active'}],link:'#',github:'#',layout_row:0,layout_col:1,connection_type:'corridor'},
     {id:16,type:'empty',layout_row:1,layout_col:0,connection_type:'none'},
   ]},
   {id:5,name:'Cloud & Infrastructure',code:'CI',color:'#2a1a1a',rooms:[
+    {id:94,type:'elevator',layout_row:0,layout_col:2,connection_type:'corridor'},
     {id:17,type:'project',title:'ADF Pipelines',subtitle:'Cloud ETL · 2023',description:'20+ Azure Data Factory pipelines from SAP, Salesforce into Data Lake Gen2.',tags:['Azure','ADF','Data Lake','ARM'],metrics:[{label:'Pipelines',value:'20+'},{label:'Sources',value:'8'},{label:'SLA',value:'99.9%'}],link:'#',github:'#',layout_row:0,layout_col:0,connection_type:'open'},
     {id:18,type:'empty',layout_row:0,layout_col:1,connection_type:'none'},
     {id:19,type:'empty',layout_row:1,layout_col:0,connection_type:'none'},
   ]},
   {id:6,name:'Open Source',code:'OS',color:'#1a2a3a',rooms:[
+    {id:95,type:'elevator',layout_row:0,layout_col:2,connection_type:'corridor'},
     {id:20,type:'project',title:'Agile Tracker',subtitle:'Web App · 2024',description:'Single-file Kanban with Google Sheets backend, OAuth, drag-and-drop, sprint tracking.',tags:['JavaScript','Google Sheets API','OAuth','HTML'],metrics:[{label:'Columns',value:'Kanban'},{label:'Backend',value:'Sheets'},{label:'Status',value:'Live'}],link:'#',github:'#',layout_row:0,layout_col:0,connection_type:'open'},
     {id:21,type:'empty',layout_row:0,layout_col:1,connection_type:'none'},
     {id:22,type:'project',title:'Streamlit Explorer',subtitle:'Data Tool · 2023',description:'Interactive chart builder with CodeMirror live editor, Plotly.js, and export/share.',tags:['Streamlit','Plotly','Python','CodeMirror'],metrics:[{label:'Chart types',value:'12'},{label:'Export',value:'PNG/SVG'},{label:'Status',value:'Live'}],link:'#',github:'#',layout_row:1,layout_col:0,connection_type:'corridor'},
