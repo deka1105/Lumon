@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Lumon Admin — Content Management</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500&family=IBM+Plex+Sans:wght@300;400;500&display=swap');
+:root{--bg:#0a1825;--bg2:#0d1f35;--bg3:#112840;--b:#1a3a55;--bm:#1e4a6a;--cream:#c8dde8;--dim:#2e5a7a;--dimmer:#1e3a50;--blue:#3a8abf;--green:#3a9a5c;--red:#c0392b;--amber:#e8b84b;--mono:'IBM Plex Mono',monospace;--sans:'IBM Plex Sans',sans-serif;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--cream);font-family:var(--mono);min-height:100vh;display:flex;flex-direction:column;}
+body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(0,0,0,.025) 3px,rgba(0,0,0,.025) 4px);pointer-events:none;z-index:9999;}
+
+/* TOP BAR */
+.topbar{height:48px;border-bottom:.5px solid var(--b);display:flex;align-items:center;padding:0 20px;gap:20px;background:var(--bg);flex-shrink:0;}
+.tb-logo{font-size:9px;letter-spacing:.35em;color:var(--dimmer);}
+.tb-title{font-size:11px;color:var(--dim);letter-spacing:.12em;}
+.tb-spacer{flex:1;}
+.tb-user{font-size:9px;color:var(--dimmer);letter-spacing:.1em;}
+.tb-logout{font-size:9px;letter-spacing:.15em;color:var(--dimmer);border:.5px solid var(--dimmer);padding:4px 10px;border-radius:2px;cursor:pointer;background:transparent;font-family:var(--mono);transition:all .2s;}
+.tb-logout:hover{border-color:var(--bm);color:var(--dim);}
+.tb-preview{font-size:9px;letter-spacing:.15em;color:var(--blue);text-decoration:none;border:.5px solid var(--bm);padding:4px 10px;border-radius:2px;transition:all .2s;}
+.tb-preview:hover{background:var(--bg3);}
+
+/* LAYOUT */
+.layout{display:flex;flex:1;overflow:hidden;}
+.sidebar{width:220px;border-right:.5px solid var(--b);display:flex;flex-direction:column;flex-shrink:0;overflow-y:auto;}
+.main{flex:1;overflow-y:auto;padding:24px;}
+
+/* SIDEBAR */
+.sb-section{padding:12px 16px 8px;font-size:8px;letter-spacing:.22em;color:var(--dimmer);border-bottom:.5px solid var(--b);}
+.sb-floor{padding:10px 16px;cursor:pointer;transition:all .2s;border-bottom:.5px solid rgba(26,58,85,.3);display:flex;align-items:center;gap:8px;}
+.sb-floor:hover{background:var(--bg2);}
+.sb-floor.active{background:var(--bg3);border-left:2px solid var(--blue);}
+.sb-floor-code{font-size:9px;color:var(--dimmer);letter-spacing:.1em;width:20px;}
+.sb-floor-name{font-size:10px;color:var(--dim);letter-spacing:.06em;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.sb-floor.active .sb-floor-name{color:var(--cream);}
+.sb-floor-cnt{font-size:8px;color:var(--dimmer);}
+.sb-add{margin:12px 16px;}
+.sb-add-btn{width:100%;background:transparent;border:.5px solid var(--bm);color:var(--dim);font-family:var(--mono);font-size:9px;letter-spacing:.18em;padding:8px;border-radius:3px;cursor:pointer;transition:all .2s;text-align:center;}
+.sb-add-btn:hover{background:var(--bg3);color:var(--cream);}
+
+/* MAIN CONTENT */
+.main-hdr{display:flex;align-items:center;gap:12px;margin-bottom:24px;padding-bottom:16px;border-bottom:.5px solid var(--b);}
+.main-ttl{font-family:var(--sans);font-weight:300;font-size:22px;color:var(--cream);letter-spacing:.04em;}
+.main-sub{font-size:9px;color:var(--dimmer);letter-spacing:.12em;margin-top:3px;}
+.main-spacer{flex:1;}
+.btn-add{background:transparent;border:.5px solid var(--bm);color:var(--dim);font-family:var(--mono);font-size:9px;letter-spacing:.15em;padding:8px 16px;border-radius:3px;cursor:pointer;transition:all .2s;}
+.btn-add:hover{background:var(--bg3);color:var(--cream);}
+
+/* FLOOR EDITOR */
+.floor-meta{background:var(--bg2);border:.5px solid var(--b);border-radius:5px;padding:16px 18px;margin-bottom:20px;display:flex;gap:12px;align-items:center;}
+.fm-field{display:flex;flex-direction:column;gap:4px;}
+.fm-lbl{font-size:8px;letter-spacing:.18em;color:var(--dimmer);}
+.fm-input{background:transparent;border:.5px solid var(--bm);color:var(--cream);font-family:var(--mono);font-size:11px;padding:6px 10px;border-radius:2px;width:140px;}
+.fm-input:focus{outline:none;border-color:var(--blue);}
+.fm-color{width:40px;height:30px;padding:0;border:.5px solid var(--bm);border-radius:2px;cursor:pointer;background:transparent;}
+.fm-save{background:transparent;border:.5px solid var(--green);color:var(--green);font-family:var(--mono);font-size:9px;letter-spacing:.15em;padding:8px 14px;border-radius:3px;cursor:pointer;transition:all .2s;}
+.fm-save:hover{background:rgba(58,154,92,.1);}
+.fm-del{background:transparent;border:.5px solid var(--red);color:var(--red);font-family:var(--mono);font-size:9px;letter-spacing:.15em;padding:8px 14px;border-radius:3px;cursor:pointer;transition:all .2s;}
+.fm-del:hover{background:rgba(192,57,43,.1);}
+
+/* ROOM GRID */
+.room-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px;}
+.room-card{background:var(--bg2);border:.5px solid var(--b);border-radius:5px;overflow:hidden;transition:border-color .2s;}
+.room-card:hover{border-color:var(--bm);}
+.room-card.is-empty{border-style:dashed;opacity:.7;}
+.rc-hdr{padding:12px 14px;border-bottom:.5px solid var(--b);display:flex;align-items:center;gap:8px;}
+.rc-type{font-size:8px;letter-spacing:.15em;padding:2px 7px;border-radius:2px;}
+.rc-proj{background:#0e2236;color:var(--blue);border:.5px solid var(--bm);}
+.rc-empty{background:#1a1010;color:#6a3a3a;border:.5px solid #3a1a1a;}
+.rc-id{font-size:8px;color:var(--dimmer);letter-spacing:.1em;}
+.rc-spacer{flex:1;}
+.rc-edit-btn{font-size:8px;letter-spacing:.12em;color:var(--dim);border:.5px solid var(--dimmer);padding:3px 8px;border-radius:2px;cursor:pointer;background:transparent;font-family:var(--mono);transition:all .2s;}
+.rc-edit-btn:hover{border-color:var(--bm);color:var(--cream);}
+.rc-del-btn{font-size:8px;letter-spacing:.12em;color:var(--red);border:.5px solid #3a1a1a;padding:3px 8px;border-radius:2px;cursor:pointer;background:transparent;font-family:var(--mono);transition:all .2s;}
+.rc-del-btn:hover{background:rgba(192,57,43,.1);}
+.rc-body{padding:12px 14px;}
+.rc-ttl{font-size:12px;color:var(--cream);letter-spacing:.04em;margin-bottom:3px;}
+.rc-sub{font-size:9px;color:var(--dim);letter-spacing:.1em;margin-bottom:8px;}
+.rc-desc{font-size:9px;color:#4a7a9a;line-height:1.7;margin-bottom:8px;}
+.rc-tags{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px;}
+.rc-tag{font-size:7px;letter-spacing:.1em;padding:2px 6px;border:.5px solid var(--dimmer);color:var(--dimmer);border-radius:2px;}
+.rc-img-thumb{width:100%;height:60px;object-fit:cover;border-radius:2px;margin-bottom:8px;}
+.rc-layout{font-size:8px;color:var(--dimmer);letter-spacing:.1em;}
+
+/* MODAL */
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:1000;display:flex;align-items:center;justify-content:center;padding:20px;}
+.modal-bg.hidden{display:none;}
+.modal{background:var(--bg);border:.5px solid var(--b);border-radius:6px;width:100%;max-width:600px;max-height:90vh;overflow-y:auto;display:flex;flex-direction:column;}
+.modal-hdr{padding:18px 20px;border-bottom:.5px solid var(--b);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
+.modal-ttl{font-size:13px;color:var(--cream);letter-spacing:.06em;}
+.modal-x{width:24px;height:24px;border:.5px solid var(--dimmer);border-radius:2px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:14px;color:var(--dim);transition:all .2s;}
+.modal-x:hover{border-color:var(--bm);color:var(--cream);}
+.modal-body{padding:20px;display:flex;flex-direction:column;gap:14px;}
+.form-row{display:flex;gap:12px;}
+.field{display:flex;flex-direction:column;gap:5px;flex:1;}
+.field label{font-size:8px;letter-spacing:.2em;color:var(--dimmer);}
+.field input,.field textarea,.field select{background:var(--bg2);border:.5px solid var(--bm);color:var(--cream);font-family:var(--mono);font-size:11px;padding:8px 10px;border-radius:2px;width:100%;}
+.field input:focus,.field textarea:focus,.field select:focus{outline:none;border-color:var(--blue);}
+.field textarea{resize:vertical;min-height:80px;line-height:1.6;}
+.field select{cursor:pointer;}
+.field select option{background:var(--bg2);}
+
+/* Image upload */
+.img-upload{border:.5px dashed var(--bm);border-radius:3px;padding:20px;text-align:center;cursor:pointer;transition:all .2s;}
+.img-upload:hover{border-color:var(--blue);background:var(--bg2);}
+.img-upload-txt{font-size:9px;letter-spacing:.15em;color:var(--dim);}
+.img-preview{width:100%;max-height:120px;object-fit:cover;border-radius:2px;margin-top:8px;display:none;}
+.img-url{font-size:8px;color:var(--dimmer);letter-spacing:.08em;margin-top:6px;word-break:break-all;}
+
+/* Metrics */
+.metrics-list{display:flex;flex-direction:column;gap:6px;}
+.metric-row{display:flex;gap:8px;align-items:center;}
+.metric-row input{flex:1;background:var(--bg2);border:.5px solid var(--bm);color:var(--cream);font-family:var(--mono);font-size:11px;padding:6px 8px;border-radius:2px;}
+.metric-row input:focus{outline:none;border-color:var(--blue);}
+.metric-del{width:24px;height:24px;background:transparent;border:.5px solid #3a1a1a;color:var(--red);border-radius:2px;cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.add-metric-btn{font-size:8px;letter-spacing:.15em;color:var(--dim);border:.5px solid var(--dimmer);padding:5px 10px;border-radius:2px;cursor:pointer;background:transparent;font-family:var(--mono);align-self:flex-start;transition:all .2s;}
+.add-metric-btn:hover{border-color:var(--bm);color:var(--cream);}
+
+/* Modal footer */
+.modal-foot{padding:16px 20px;border-top:.5px solid var(--b);display:flex;gap:8px;justify-content:flex-end;flex-shrink:0;}
+.btn-save{background:transparent;border:.5px solid var(--green);color:var(--green);font-family:var(--mono);font-size:9px;letter-spacing:.18em;padding:9px 20px;border-radius:3px;cursor:pointer;transition:all .2s;}
+.btn-save:hover{background:rgba(58,154,92,.1);}
+.btn-cancel{background:transparent;border:.5px solid var(--dimmer);color:var(--dim);font-family:var(--mono);font-size:9px;letter-spacing:.18em;padding:9px 16px;border-radius:3px;cursor:pointer;transition:all .2s;}
+.btn-cancel:hover{border-color:var(--bm);}
+
+/* Toast */
+.toast{position:fixed;bottom:24px;right:24px;background:var(--bg2);border:.5px solid var(--green);color:var(--green);font-family:var(--mono);font-size:9px;letter-spacing:.18em;padding:10px 18px;border-radius:3px;z-index:2000;opacity:0;transition:opacity .3s;pointer-events:none;}
+.toast.show{opacity:1;}
+.toast.err{border-color:var(--red);color:var(--red);}
+
+.empty-state{text-align:center;padding:60px 20px;color:var(--dimmer);font-size:10px;letter-spacing:.15em;}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="tb-logo">Lumon Industries</div>
+  <div class="tb-title">Admin Console</div>
+  <div class="tb-spacer"></div>
+  <div class="tb-user" id="tb-user">—</div>
+  <a class="tb-preview" href="/" target="_blank">View Portfolio ↗</a>
+  <button class="tb-logout" onclick="logout()">Sign Out</button>
+</div>
+
+<div class="layout">
+  <div class="sidebar">
+    <div class="sb-section">Floors</div>
+    <div id="sb-floors"></div>
+    <div class="sb-add"><button class="sb-add-btn" onclick="openAddFloor()">+ Add Floor</button></div>
+  </div>
+  <div class="main" id="main-area">
+    <div class="empty-state">Select a floor from the sidebar to manage its rooms.</div>
+  </div>
+</div>
+
+<!-- Room Edit Modal -->
+<div class="modal-bg hidden" id="room-modal">
+  <div class="modal">
+    <div class="modal-hdr">
+      <div class="modal-ttl" id="modal-ttl">Edit Room</div>
+      <div class="modal-x" onclick="closeModal()">×</div>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="field"><label>Type</label>
+          <select id="f-type" onchange="toggleProjectFields()">
+            <option value="project">Project</option>
+            <option value="empty">Empty</option>
+          </select>
+        </div>
+        <div class="field"><label>Connection type</label>
+          <select id="f-conn">
+            <option value="open">Open doorway</option>
+            <option value="corridor">Corridor</option>
+            <option value="none">None</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="field"><label>Layout row</label><input type="number" id="f-row" min="0" value="0"></div>
+        <div class="field"><label>Layout col</label><input type="number" id="f-col" min="0" value="0"></div>
+        <div class="field"><label>Sort order</label><input type="number" id="f-sort" min="0" value="0"></div>
+      </div>
+      <div id="project-fields">
+        <div class="field"><label>Title</label><input type="text" id="f-title" placeholder="Project name"></div>
+        <div class="field"><label>Subtitle</label><input type="text" id="f-sub" placeholder="Category · Year"></div>
+        <div class="field"><label>Description</label><textarea id="f-desc" placeholder="What this project does and why it matters..."></textarea></div>
+        <div class="field"><label>Tags (comma separated)</label><input type="text" id="f-tags" placeholder="Kafka, Snowflake, Python"></div>
+        <div class="field"><label>Project link</label><input type="url" id="f-link" placeholder="https://..."></div>
+        <div class="field"><label>GitHub link</label><input type="url" id="f-github" placeholder="https://github.com/..."></div>
+
+        <div class="field"><label>Project image</label>
+          <div class="img-upload" onclick="document.getElementById('f-img-file').click()">
+            <div class="img-upload-txt">Click to upload image (max 8MB)</div>
+            <img id="f-img-preview" class="img-preview">
+          </div>
+          <input type="file" id="f-img-file" accept="image/*" style="display:none" onchange="handleImageUpload(this)">
+          <div class="img-url" id="f-img-url"></div>
+        </div>
+
+        <div class="field"><label>Metrics</label>
+          <div class="metrics-list" id="metrics-list"></div>
+          <button class="add-metric-btn" onclick="addMetric()">+ Add metric</button>
+        </div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn-cancel" onclick="closeModal()">Cancel</button>
+      <button class="btn-save" onclick="saveRoom()">Save Room</button>
+    </div>
+  </div>
+</div>
+
+<!-- Floor Add Modal -->
+<div class="modal-bg hidden" id="floor-modal">
+  <div class="modal" style="max-width:400px;">
+    <div class="modal-hdr"><div class="modal-ttl" id="floor-modal-ttl">Add Floor</div><div class="modal-x" onclick="closeFloorModal()">×</div></div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="field"><label>Floor name</label><input type="text" id="ff-name" placeholder="Data Engineering"></div>
+        <div class="field" style="max-width:80px;"><label>Code</label><input type="text" id="ff-code" placeholder="DE" maxlength="3"></div>
+      </div>
+      <div class="form-row">
+        <div class="field"><label>Accent color</label><input type="color" id="ff-color" value="#1a4a6a" style="height:36px;width:60px;padding:2px;"></div>
+        <div class="field"><label>Sort order</label><input type="number" id="ff-sort" value="0" min="0"></div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn-cancel" onclick="closeFloorModal()">Cancel</button>
+      <button class="btn-save" onclick="saveFloor()">Save Floor</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+let floors=[], activeFloorId=null, editingRoomId=null, editingFloorId=null, uploadedImageUrl='';
+
+async function init(){
+  const me=await fetch('/api/auth/me').then(r=>r.json()).catch(()=>null);
+  if(!me||me.error){ location.href='/admin-login.html'; return; }
+  document.getElementById('tb-user').textContent=me.email;
+  await loadFloors();
+}
+
+async function loadFloors(){
+  floors=await fetch('/api/floors').then(r=>r.json()).catch(()=>[]);
+  renderSidebar();
+  if(activeFloorId) renderFloor(activeFloorId);
+}
+
+function renderSidebar(){
+  const sb=document.getElementById('sb-floors'); sb.innerHTML='';
+  floors.forEach(fl=>{
+    const rooms=fl.rooms||[];
+    const div=document.createElement('div');
+    div.className='sb-floor'+(fl.id===activeFloorId?' active':'');
+    div.innerHTML=`<span class="sb-floor-code">${fl.code}</span><span class="sb-floor-name">${fl.name}</span><span class="sb-floor-cnt">${rooms.length}</span>`;
+    div.onclick=()=>{ activeFloorId=fl.id; renderSidebar(); renderFloor(fl.id); };
+    sb.appendChild(div);
+  });
+}
+
+function renderFloor(floorId){
+  const floor=floors.find(f=>f.id===floorId); if(!floor) return;
+  const rooms=floor.rooms||[];
+  const main=document.getElementById('main-area');
+  main.innerHTML=`
+    <div class="main-hdr">
+      <div><div class="main-ttl">Floor ${floor.id} — ${floor.name}</div><div class="main-sub">${rooms.length} rooms · ${rooms.filter(r=>r.type==='project').length} projects</div></div>
+      <div class="main-spacer"></div>
+      <button class="btn-add" onclick="openEditFloor(${floor.id})" style="margin-right:8px;">Edit Floor</button>
+      <button class="btn-add" onclick="openAddRoom(${floor.id})">+ Add Room</button>
+    </div>
+    <div class="floor-meta" id="floor-meta-${floor.id}">
+      <div class="fm-field"><div class="fm-lbl">Name</div><input class="fm-input" value="${floor.name}" id="fm-name-${floor.id}"></div>
+      <div class="fm-field"><div class="fm-lbl">Code</div><input class="fm-input" value="${floor.code}" id="fm-code-${floor.id}" style="width:70px;"></div>
+      <div class="fm-field"><div class="fm-lbl">Color</div><input type="color" class="fm-color" value="${floor.color||'#1a4a6a'}" id="fm-color-${floor.id}"></div>
+      <button class="fm-save" onclick="updateFloor(${floor.id})">Save</button>
+      <button class="fm-del" onclick="deleteFloor(${floor.id})">Delete Floor</button>
+    </div>
+    <div class="room-grid" id="room-grid-${floor.id}">
+      ${rooms.length===0?'<div class="empty-state">No rooms yet. Add your first room.</div>':''}
+      ${rooms.map(r=>roomCard(r)).join('')}
+    </div>`;
+}
+
+function roomCard(r){
+  const isProj=r.type==='project';
+  return `<div class="room-card${isProj?'':' is-empty'}">
+    <div class="rc-hdr">
+      <span class="rc-type ${isProj?'rc-proj':'rc-empty'}">${r.type}</span>
+      <span class="rc-id">row:${r.layout_row} col:${r.layout_col}</span>
+      <div class="rc-spacer"></div>
+      <button class="rc-edit-btn" onclick="openEditRoom(${r.id})">Edit</button>
+      <button class="rc-del-btn" onclick="deleteRoom(${r.id})">Del</button>
+    </div>
+    <div class="rc-body">
+      ${r.image_url?`<img class="rc-img-thumb" src="${r.image_url}" alt="">`:''}
+      ${isProj?`<div class="rc-ttl">${r.title||'Untitled'}</div><div class="rc-sub">${r.subtitle||''}</div><div class="rc-desc">${(r.description||'').slice(0,100)}${(r.description||'').length>100?'…':''}</div><div class="rc-tags">${(r.tags||[]).map(t=>`<span class="rc-tag">${t}</span>`).join('')}</div>`:'<div style="color:#2e5a7a;font-size:9px;letter-spacing:.12em;">Empty room — glitch display</div>'}
+      <div class="rc-layout">Connection: ${r.connection_type||'corridor'} · Sort: ${r.sort_order||0}</div>
+    </div>
+  </div>`;
+}
+
+// ── Floor CRUD ──────────────────────────
+function openAddFloor(){ editingFloorId=null; document.getElementById('floor-modal-ttl').textContent='Add Floor'; ['ff-name','ff-code'].forEach(id=>document.getElementById(id).value=''); document.getElementById('ff-sort').value=floors.length; document.getElementById('floor-modal').classList.remove('hidden'); }
+function openEditFloor(id){ editingFloorId=id; const fl=floors.find(f=>f.id===id); if(!fl)return; document.getElementById('floor-modal-ttl').textContent='Edit Floor'; document.getElementById('ff-name').value=fl.name; document.getElementById('ff-code').value=fl.code; document.getElementById('ff-color').value=fl.color||'#1a4a6a'; document.getElementById('ff-sort').value=fl.sort_order||0; document.getElementById('floor-modal').classList.remove('hidden'); }
+function closeFloorModal(){ document.getElementById('floor-modal').classList.add('hidden'); }
+async function saveFloor(){
+  const body={name:document.getElementById('ff-name').value,code:document.getElementById('ff-code').value.toUpperCase(),color:document.getElementById('ff-color').value,sort_order:parseInt(document.getElementById('ff-sort').value)||0};
+  const url=editingFloorId?`/api/floors/${editingFloorId}`:'/api/floors';
+  const method=editingFloorId?'PUT':'POST';
+  const r=await fetch(url,{method,headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(r=>r.json());
+  if(r.error){toast(r.error,true);return;}
+  closeFloorModal(); toast('Floor saved'); await loadFloors();
+}
+async function updateFloor(id){ const body={name:document.getElementById(`fm-name-${id}`).value,code:document.getElementById(`fm-code-${id}`).value.toUpperCase(),color:document.getElementById(`fm-color-${id}`).value}; const r=await fetch(`/api/floors/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(r=>r.json()); if(r.error){toast(r.error,true);return;} toast('Floor updated'); await loadFloors(); }
+async function deleteFloor(id){ if(!confirm('Delete this floor and ALL its rooms?'))return; await fetch(`/api/floors/${id}`,{method:'DELETE'}); if(activeFloorId===id)activeFloorId=null; toast('Floor deleted'); await loadFloors(); document.getElementById('main-area').innerHTML='<div class="empty-state">Select a floor from the sidebar.</div>'; }
+
+// ── Room CRUD ──────────────────────────
+function openAddRoom(floorId){ editingRoomId=null; activeFloorId=floorId; resetRoomForm(); document.getElementById('modal-ttl').textContent='Add Room'; document.getElementById('room-modal').classList.remove('hidden'); }
+async function openEditRoom(roomId){
+  editingRoomId=roomId;
+  let room=null;
+  floors.forEach(fl=>(fl.rooms||[]).forEach(r=>{if(r.id===roomId)room=r;}));
+  if(!room)return;
+  document.getElementById('modal-ttl').textContent='Edit Room';
+  document.getElementById('f-type').value=room.type;
+  document.getElementById('f-conn').value=room.connection_type||'corridor';
+  document.getElementById('f-row').value=room.layout_row||0;
+  document.getElementById('f-col').value=room.layout_col||0;
+  document.getElementById('f-sort').value=room.sort_order||0;
+  document.getElementById('f-title').value=room.title||'';
+  document.getElementById('f-sub').value=room.subtitle||'';
+  document.getElementById('f-desc').value=room.description||'';
+  document.getElementById('f-tags').value=(room.tags||[]).join(', ');
+  document.getElementById('f-link').value=room.link||'';
+  document.getElementById('f-github').value=room.github||'';
+  uploadedImageUrl=room.image_url||'';
+  document.getElementById('f-img-url').textContent=uploadedImageUrl?'Image: '+uploadedImageUrl.split('/').pop():'';
+  const prev=document.getElementById('f-img-preview'); if(uploadedImageUrl){prev.src=uploadedImageUrl;prev.style.display='block';}else{prev.style.display='none';}
+  const ml=document.getElementById('metrics-list'); ml.innerHTML='';
+  (room.metrics||[]).forEach(m=>addMetric(m.label,m.value));
+  toggleProjectFields();
+  document.getElementById('room-modal').classList.remove('hidden');
+}
+function resetRoomForm(){ ['f-title','f-sub','f-desc','f-tags','f-link','f-github'].forEach(id=>document.getElementById(id).value=''); document.getElementById('f-type').value='project'; document.getElementById('f-conn').value='corridor'; document.getElementById('f-row').value=0; document.getElementById('f-col').value=0; document.getElementById('f-sort').value=0; document.getElementById('metrics-list').innerHTML=''; uploadedImageUrl=''; document.getElementById('f-img-preview').style.display='none'; document.getElementById('f-img-url').textContent=''; toggleProjectFields(); }
+function closeModal(){ document.getElementById('room-modal').classList.add('hidden'); }
+function toggleProjectFields(){ const show=document.getElementById('f-type').value==='project'; document.getElementById('project-fields').style.display=show?'flex':'none'; document.getElementById('project-fields').style.flexDirection='column'; document.getElementById('project-fields').style.gap='14px'; }
+
+async function saveRoom(){
+  const type=document.getElementById('f-type').value;
+  const body={type,connection_type:document.getElementById('f-conn').value,layout_row:parseInt(document.getElementById('f-row').value)||0,layout_col:parseInt(document.getElementById('f-col').value)||0,sort_order:parseInt(document.getElementById('f-sort').value)||0};
+  if(type==='project'){
+    body.title=document.getElementById('f-title').value;
+    body.subtitle=document.getElementById('f-sub').value;
+    body.description=document.getElementById('f-desc').value;
+    body.tags=document.getElementById('f-tags').value.split(',').map(t=>t.trim()).filter(Boolean);
+    body.link=document.getElementById('f-link').value;
+    body.github=document.getElementById('f-github').value;
+    body.image_url=uploadedImageUrl||null;
+    if(!editingRoomId) body.floor_id=activeFloorId;
+  }
+  const url=editingRoomId?`/api/rooms/${editingRoomId}`:'/api/rooms';
+  const method=editingRoomId?'PUT':'POST';
+  if(!editingRoomId) body.floor_id=activeFloorId;
+  const r=await fetch(url,{method,headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(r=>r.json());
+  if(r.error){toast(r.error,true);return;}
+
+  // save metrics
+  if(type==='project'){
+    const roomId=editingRoomId||r.id;
+    const metrics=[...document.getElementById('metrics-list').querySelectorAll('.metric-row')].map(row=>({label:row.querySelector('.m-label').value,value:row.querySelector('.m-value').value})).filter(m=>m.label);
+    await fetch(`/api/rooms/${roomId}/metrics`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({metrics})});
+  }
+  closeModal(); toast('Room saved'); await loadFloors(); renderFloor(activeFloorId);
+}
+
+async function deleteRoom(id){ if(!confirm('Delete this room?'))return; await fetch(`/api/rooms/${id}`,{method:'DELETE'}); toast('Room deleted'); await loadFloors(); renderFloor(activeFloorId); }
+
+// ── Metrics ──────────────────────────
+function addMetric(label='',value=''){ const row=document.createElement('div'); row.className='metric-row'; row.innerHTML=`<input class="m-label" placeholder="Label" value="${label}"><input class="m-value" placeholder="Value" value="${value}"><button class="metric-del" onclick="this.parentNode.remove()">×</button>`; document.getElementById('metrics-list').appendChild(row); }
+
+// ── Image upload ──────────────────────────
+async function handleImageUpload(input){ const file=input.files[0]; if(!file)return; const fd=new FormData(); fd.append('image',file); const r=await fetch('/api/upload',{method:'POST',body:fd}).then(r=>r.json()); if(r.error){toast(r.error,true);return;} uploadedImageUrl=r.url; const prev=document.getElementById('f-img-preview'); prev.src=r.url; prev.style.display='block'; document.getElementById('f-img-url').textContent='Uploaded: '+r.url.split('/').pop(); toast('Image uploaded'); }
+
+// ── Auth ──────────────────────────
+async function logout(){ await fetch('/api/auth/logout',{method:'POST'}); location.href='/admin-login.html'; }
+
+// ── Toast ──────────────────────────
+function toast(msg,err=false){ const t=document.getElementById('toast'); t.textContent=msg; t.className='toast'+(err?' err':''); t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),3000); }
+
+init();
+</script>
+</body>
+</html>
