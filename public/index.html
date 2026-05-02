@@ -111,12 +111,7 @@ body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradie
 .caml{font-size:9px;letter-spacing:.1em;color:var(--dimmer);}
 .cami.act .caml{color:var(--cdim);}
 #hud-floor{bottom:14px;left:14px;}
-.fmap{display:grid;gap:2px;margin-top:3px;}
-.fc{width:16px;height:16px;border-radius:2px;border:.5px solid transparent;cursor:pointer;position:relative;transition:background .3s;}
-.fc-blank{background:transparent!important;border-color:transparent!important;pointer-events:none;}
-.fc-proj{background:#0e2236;border-color:var(--nb);}
-.fc-empty{border-color:var(--dimmer);}
-.fc-cur{background:var(--blue)!important;border-color:var(--blueg)!important;}
+.fmap-cv{display:block;border-radius:3px;cursor:pointer;}
 .fleg{display:flex;gap:7px;margin-top:6px;}
 .fli{display:flex;align-items:center;gap:3px;font-size:7px;color:var(--dimmer);}
 .fld{width:6px;height:6px;border-radius:1px;}
@@ -249,7 +244,7 @@ body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradie
   </div>
   <div class="hud hudp" id="hud-floor">
     <div class="hudl" onclick="toggleHud('hud-floor')"><span id="hflnm">Floor Map</span> <span class="hudt">−</span></div>
-    <div class="hudb"><div class="fmap" id="fmap"></div><div class="fleg"><div class="fli"><div class="fld" style="background:var(--blue);"></div>Here</div><div class="fli"><div class="fld" style="background:#0e2236;border:.5px solid var(--nb);"></div>Project</div><div class="fli"><div class="fld" style="background:var(--navy2);border:.5px solid var(--dimmer);"></div>Empty</div></div></div>
+    <div class="hudb"><canvas id="fmap" class="fmap-cv" width="160" height="120"></canvas><div class="fleg"><div class="fli"><div class="fld" style="background:var(--blue);"></div>Here</div><div class="fli"><div class="fld" style="background:#0e2236;border:.5px solid var(--nb);"></div>Project</div><div class="fli"><div class="fld" style="background:var(--navy2);border:.5px solid var(--dimmer);"></div>Empty</div></div></div>
   </div>
   <div class="hud hudp" id="hud-bld">
     <div class="hudl" onclick="toggleHud('hud-bld')">Lumon HQ <span class="hudt">−</span></div>
@@ -285,7 +280,7 @@ const CHARS=[
 const Tcls={1:'t1',2:'t2',4:'t4',5:'t5'};
 
 // ═══════ STATE ═══════
-const S={char:null,floors:[],cf:{},fi:0,curRoom:null,visited:new Set(),view:'iso',cardOpen:false,crData:null,px:{x:0,y:0},sm:{x:0,y:0},wt:0,keys:{}};
+const S={char:null,floors:[],cf:{},fi:0,curRoom:null,visited:new Set(),view:'iso',cardOpen:false,crData:null,px:{x:0,y:0},sm:{x:0,y:0},wt:0,keys:{},zoom:1,rotAngle:0,drag:{active:false,startX:0,startAngle:0}};
 const $=id=>document.getElementById(id);
 function go(a,b){$(a).classList.add('off');setTimeout(()=>{$(a).classList.add('gone');$(b).classList.remove('gone');requestAnimationFrame(()=>$(b).classList.remove('off'));},900);}
 
@@ -403,7 +398,13 @@ const P={
 };
 let iCtx,iW,iH,iOX,iOY,iRaf;
 
-function g2s(gx,gy){return{x:iOX+(gx-gy)*(TW/2),y:iOY+(gx+gy)*(TH/2)};}
+function g2s(gx,gy){
+  const z=S.zoom, ra=S.rotAngle;
+  const ix=(gx-gy)*(TW/2), iy=(gx+gy)*(TH/2);
+  const rx=ix*Math.cos(ra)-iy*Math.sin(ra)*0.3;
+  const ry=ix*Math.sin(ra)*0.3+iy*Math.cos(ra);
+  return{x:iOX+rx*z, y:iOY+ry*z};
+}
 function s2g(sx,sy){const rx=sx-iOX,ry=sy-iOY;return{x:Math.floor((rx/(TW/2)+ry/(TH/2))/2),y:Math.floor((ry/(TH/2)-rx/(TW/2))/2)};}
 function buildGrid(floor){
   const rooms=floor.rooms||[];let mR=0,mC=0;
@@ -715,22 +716,118 @@ function updFMap(){
   const fl=S.floors[S.fi];if(!fl)return;
   $('hflnm').textContent=`Floor ${fl.id} — ${fl.name}`;
   const{grid,rows,cols}=buildGrid(fl);
-  const map=$('fmap');map.style.gridTemplateColumns=`repeat(${cols},16px)`;map.innerHTML='';
-  for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){
-    const room=grid[r]?.[c];const cell=document.createElement('div');cell.className='fc';
-    if(room===undefined){cell.classList.add('fc-blank');}
-    else if(!room||room.type==='empty'){
-      cell.classList.add('fc-empty');
-      cell.style.background=P.gl[(r*cols+c)%P.gl.length];cell.style.opacity='.55';
-    } else {
-      cell.classList.add('fc-proj');
-      if(S.visited.has(room.id))cell.style.opacity='.85';
-      if(S.curRoom?.id===room.id)cell.classList.add('fc-cur');
-      cell.title=room.title||'';cell.style.cursor='pointer';
-      cell.onclick=()=>{S.px={x:c,y:r};updFMap();};
+  const cv=$('fmap'),ctx=cv.getContext('2d');
+  const CW=cv.width,CH=cv.height;
+  ctx.clearRect(0,0,CW,CH);
+  // dark background
+  ctx.fillStyle='#0a1420';ctx.fillRect(0,0,CW,CH);
+
+  const pad=6;
+  const cellW=(CW-pad*2)/cols, cellH=(CH-pad*2)/rows;
+  const wallT=2; // wall thickness in minimap px
+
+  for(let r=0;r<rows;r++){
+    for(let c=0;c<cols;c++){
+      const room=grid[r]?.[c];
+      if(room===undefined)continue;
+      const rx=pad+c*cellW, ry=pad+r*cellH;
+      const rw=cellW-1, rh=cellH-1;
+
+      if(!room||room.type==='empty'){
+        // glitch color for empty
+        ctx.globalAlpha=0.5;
+        ctx.fillStyle=P.gl[(r*cols+c)%P.gl.length];
+        ctx.fillRect(rx+1,ry+1,rw-2,rh-2);
+        ctx.globalAlpha=1;
+        // thin border
+        ctx.strokeStyle='#1e2e3e';ctx.lineWidth=.5;
+        ctx.strokeRect(rx+.5,ry+.5,rw,rh);
+      } else {
+        // room floor — teal
+        const isCur=S.curRoom?.id===room.id;
+        const isVis=S.visited.has(room.id);
+        ctx.fillStyle=isCur?'#1a4a6a':isVis?'#0e2a3a':'#081828';
+        ctx.fillRect(rx,ry,rw,rh);
+        // carpet hint
+        ctx.fillStyle=isCur?'#3a8a70':'#2a6050';
+        ctx.fillRect(rx+2,ry+2,rw-4,rh-4);
+
+        // walls — draw on edges that have no neighbour
+        ctx.fillStyle=isCur?'#c0c8d0':'#8a9098';
+        // north wall
+        if(!grid[r-1]?.[c])ctx.fillRect(rx,ry,rw,wallT);
+        // west wall
+        if(!grid[r]?.[c-1])ctx.fillRect(rx,ry,wallT,rh);
+        // south wall
+        const adjS=grid[r+1]?.[c];
+        if(!adjS)ctx.fillRect(rx,ry+rh-wallT,rw,wallT);
+        else if(room.connection_type==='corridor'){
+          ctx.fillRect(rx,ry+rh-wallT,rw*.35,wallT);
+          ctx.fillRect(rx+rw*.65,ry+rh-wallT,rw*.35,wallT);
+          // corridor line
+          ctx.strokeStyle='#4a7060';ctx.lineWidth=1;
+          ctx.beginPath();ctx.moveTo(rx+rw*.5,ry+rh);ctx.lineTo(rx+rw*.5,ry+rh+cellH*.3);ctx.stroke();
+        }
+        // east wall
+        const adjE=grid[r]?.[c+1];
+        if(!adjE)ctx.fillRect(rx+rw-wallT,ry,wallT,rh);
+        else if(room.connection_type==='corridor'){
+          ctx.fillRect(rx+rw-wallT,ry,wallT,rh*.35);
+          ctx.fillRect(rx+rw-wallT,ry+rh*.65,wallT,rh*.35);
+          ctx.strokeStyle='#4a7060';ctx.lineWidth=1;
+          ctx.beginPath();ctx.moveTo(rx+rw,ry+rh*.5);ctx.lineTo(rx+rw+cellW*.3,ry+rh*.5);ctx.stroke();
+        }
+
+        // door marker (small gap on south wall)
+        ctx.fillStyle='#6a9a8a';
+        ctx.fillRect(rx+rw*.35,ry+rh-wallT,rw*.3,wallT);
+
+        // desk dot
+        if(isVis||isCur){
+          ctx.fillStyle='rgba(180,180,160,.6)';
+          ctx.fillRect(rx+rw*.3,ry+rh*.3,rw*.35,rh*.25);
+        }
+
+        // room name (tiny)
+        if(room.title&&(isCur||isVis)){
+          ctx.fillStyle=isCur?'#7ac3e8':'#3a6a7a';
+          ctx.font=`bold ${Math.min(cellW*.28,7)}px monospace`;
+          ctx.textAlign='center';ctx.textBaseline='middle';
+          ctx.fillText(room.title.slice(0,6),rx+rw*.5,ry+rh*.72);
+        }
+      }
     }
-    map.appendChild(cell);
   }
+
+  // Player pointer — triangle + dot
+  const px=pad+S.px.x*cellW+cellW*.5;
+  const py=pad+S.px.y*cellH+cellH*.5;
+  // glow
+  ctx.save();
+  ctx.shadowColor='rgba(90,170,210,.8)';ctx.shadowBlur=6;
+  // triangle pointing up (direction of travel)
+  ctx.fillStyle='#5aaad4';
+  ctx.beginPath();
+  ctx.moveTo(px,py-6);
+  ctx.lineTo(px+4,py+3);
+  ctx.lineTo(px-4,py+3);
+  ctx.closePath();ctx.fill();
+  // center dot
+  ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(px,py+.5,1.5,0,Math.PI*2);ctx.fill();
+  ctx.restore();
+
+  // border
+  ctx.strokeStyle='#1e3a55';ctx.lineWidth=.5;ctx.strokeRect(.5,.5,CW-1,CH-1);
+
+  // click handler — set to grid cell
+  cv.onclick=function(e){
+    const rect=cv.getBoundingClientRect();
+    const mx=e.clientX-rect.left,my=e.clientY-rect.top;
+    const c=Math.floor((mx-pad)/cellW),r=Math.floor((my-pad)/cellH);
+    if(r>=0&&r<rows&&c>=0&&c<cols&&grid[r]?.[c]!==undefined){
+      S.px={x:c,y:r};const room=grid[r][c];if(room)enterRoom(room);updFMap();
+    }
+  };
 }
 function updBMap(){
   const bf=$('bfloors');bf.innerHTML='';
@@ -762,7 +859,7 @@ function enterRoom(room){
   S.curRoom=room;S.visited.add(room.id);
   const s=$('sensor');s.style.opacity='1';setTimeout(()=>s.style.opacity='0',400);
   updFMap();
-  if(room.type==='project'){openCard(room);setTimeout(()=>setView('fp'),500);}
+  if(room.type==='project'){openCard(room);}
 }
 function openCard(room){
   S.cardOpen=true;S.crData=room;
@@ -798,15 +895,36 @@ function setupInput(){
       S.px={x:nx,y:ny};const room=grid[ny][nx];if(room)enterRoom(room);updFMap();
     }
   },130);
-  // Click to move
-  $('iso-canvas').addEventListener('click',e=>{
+  // Click to move (only if not a drag)
+  const ic=$('iso-canvas');
+  let dragDist=0;
+  ic.addEventListener('mousedown',e=>{
+    if(e.button!==0)return;
+    S.drag.active=true;S.drag.startX=e.clientX;S.drag.startAngle=S.rotAngle;dragDist=0;
+    ic.style.cursor='grabbing';
+  });
+  addEventListener('mousemove',e=>{
+    if(!S.drag.active)return;
+    const dx=e.clientX-S.drag.startX;
+    dragDist=Math.abs(dx);
+    S.rotAngle=S.drag.startAngle+dx*0.008;
+  });
+  addEventListener('mouseup',e=>{
+    if(!S.drag.active)return;
+    S.drag.active=false;ic.style.cursor='crosshair';
+    if(dragDist>6)return; // was a drag, not a click
     if(S.cardOpen)return;
-    const rect=$('iso-canvas').getBoundingClientRect();
+    const rect=ic.getBoundingClientRect();
     const{x,y}=s2g(e.clientX-rect.left,e.clientY-rect.top);
     const fl=S.floors[S.fi];if(!fl)return;
     const{grid,rows,cols}=buildGrid(fl);
     if(y>=0&&y<rows&&x>=0&&x<cols&&grid[y]?.[x]!==undefined){S.px={x,y};const room=grid[y][x];if(room)enterRoom(room);updFMap();}
   });
+  // Mouse wheel zoom
+  ic.addEventListener('wheel',e=>{
+    e.preventDefault();
+    S.zoom=Math.max(0.4,Math.min(2.5,S.zoom-e.deltaY*0.001));
+  },{passive:false});
 }
 
 // ═══════ FETCH ═══════
