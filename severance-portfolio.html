@@ -1,0 +1,1578 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Lumon Industries — Employee Terminal</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500&family=IBM+Plex+Sans:wght@300;400;500&display=swap');
+
+:root {
+  --navy: #0a1825;
+  --navy-mid: #0d1f35;
+  --navy-light: #112840;
+  --navy-border: #1a3a55;
+  --navy-border-mid: #1e4a6a;
+  --cream: #c8dde8;
+  --cream-dim: #8aaabf;
+  --blue-accent: #3a8abf;
+  --blue-glow: #5aaad4;
+  --dim: #2e5a7a;
+  --dimmer: #1e3a50;
+  --green: #3a9a5c;
+  --red: #c0392b;
+  --amber: #e8b84b;
+  --mono: 'IBM Plex Mono', 'Courier New', monospace;
+  --sans: 'IBM Plex Sans', sans-serif;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { width: 100%; height: 100%; overflow: hidden; }
+
+body {
+  background: var(--navy);
+  color: var(--cream);
+  font-family: var(--mono);
+  position: relative;
+}
+
+body::after {
+  content: '';
+  position: fixed; inset: 0;
+  background: repeating-linear-gradient(0deg, transparent, transparent 3px, rgba(0,0,0,0.025) 3px, rgba(0,0,0,0.025) 4px);
+  pointer-events: none;
+  z-index: 9998;
+}
+
+/* ════════════════════════════════════════
+   SCREEN SYSTEM
+════════════════════════════════════════ */
+.screen {
+  position: fixed; inset: 0;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  transition: opacity 0.9s ease;
+  z-index: 10;
+}
+.screen.off { opacity: 0; pointer-events: none; z-index: 1; }
+.screen.gone { display: none; }
+
+/* ════════════════════════════════════════
+   MOBILE GATE
+════════════════════════════════════════ */
+#screen-mobile {
+  background: var(--navy);
+  padding: 40px 32px;
+  text-align: center;
+  display: none;
+}
+@media (max-width: 767px) {
+  #screen-mobile { display: flex !important; z-index: 9999; }
+  #screen-loading, #screen-boot, #screen-consent, #screen-chip, #screen-chars, #screen-game { display: none !important; }
+}
+.mobile-logo { font-size: 9px; letter-spacing: 0.35em; color: var(--dim); margin-bottom: 40px; }
+.mobile-title { font-family: var(--sans); font-weight: 300; font-size: 22px; color: var(--cream); letter-spacing: 0.06em; margin-bottom: 8px; line-height: 1.3; }
+.mobile-sub { font-size: 10px; color: var(--dim); letter-spacing: 0.15em; margin-bottom: 40px; line-height: 1.8; }
+.mobile-divider { width: 40px; height: 0.5px; background: var(--dimmer); margin: 0 auto 40px; }
+.mobile-msg { font-size: 11px; color: var(--cream-dim); line-height: 2; margin-bottom: 32px; max-width: 320px; }
+.mobile-msg em { color: var(--cream); font-style: normal; }
+.mobile-copy-btn {
+  background: transparent; border: 0.5px solid var(--navy-border-mid);
+  color: var(--dim); font-family: var(--mono); font-size: 10px;
+  letter-spacing: 0.2em; padding: 12px 28px; border-radius: 3px;
+  cursor: pointer; transition: all 0.2s;
+}
+.mobile-copy-btn:hover { background: var(--navy-light); color: var(--cream-dim); }
+.mobile-footer { margin-top: 40px; font-size: 8px; color: var(--dimmer); letter-spacing: 0.15em; }
+
+/* ════════════════════════════════════════
+   LOADING SCREEN
+════════════════════════════════════════ */
+#screen-loading { background: var(--navy); cursor: none; }
+#loading-canvas { position: fixed; inset: 0; }
+.loading-ui {
+  position: relative; z-index: 2;
+  text-align: center; pointer-events: none;
+}
+.loading-brand { font-size: 9px; letter-spacing: 0.4em; color: var(--dimmer); margin-bottom: 12px; text-transform: uppercase; }
+.loading-title { font-family: var(--sans); font-weight: 300; font-size: 32px; color: var(--cream); letter-spacing: 0.1em; opacity: 0.9; }
+.loading-line { width: 48px; height: 0.5px; background: var(--dimmer); margin: 18px auto; }
+.loading-hint { font-size: 9px; letter-spacing: 0.25em; color: var(--dim); animation: blink 2.2s infinite; }
+.loading-progress {
+  position: fixed; bottom: 36px; left: 50%; transform: translateX(-50%);
+  text-align: center; z-index: 3; pointer-events: none;
+}
+.loading-bar-track { width: 140px; height: 0.5px; background: var(--dimmer); margin: 0 auto 10px; }
+.loading-bar-fill { height: 0.5px; background: var(--blue-accent); width: 0%; transition: width 0.06s linear; }
+.loading-pct { font-size: 9px; color: var(--dim); letter-spacing: 0.22em; }
+#loading-cursor {
+  position: fixed; width: 7px; height: 7px;
+  border: 0.5px solid var(--blue-accent); border-radius: 50%;
+  pointer-events: none; transform: translate(-50%,-50%);
+  transition: opacity 0.3s; z-index: 4; opacity: 0;
+}
+
+/* ════════════════════════════════════════
+   BOOT SCREEN
+════════════════════════════════════════ */
+#screen-boot {
+  background: #020d15;
+  align-items: flex-start; justify-content: flex-start;
+  padding: 48px 60px; font-size: 12px;
+  color: var(--cream-dim);
+}
+.boot-lines { max-width: 680px; }
+.boot-line {
+  opacity: 0; white-space: pre; line-height: 2;
+  animation: fadeInLine 0.05s forwards;
+}
+.boot-ok { color: var(--green); }
+.boot-warn { color: var(--amber); }
+.boot-err { color: var(--red); }
+.boot-cursor { display: inline-block; width: 8px; height: 14px; background: var(--cream-dim); animation: cursorBlink 0.8s infinite; vertical-align: middle; }
+
+/* ════════════════════════════════════════
+   CONSENT SCREEN
+════════════════════════════════════════ */
+#screen-consent {
+  background: var(--navy);
+  padding: 0 40px;
+  justify-content: center;
+  overflow: hidden;
+}
+.consent-inner { max-width: 720px; width: 100%; }
+.consent-logo { font-size: 9px; letter-spacing: 0.35em; color: var(--dimmer); margin-bottom: 44px; display: flex; align-items: center; gap: 14px; }
+.consent-logo::before { content: ''; width: 28px; height: 0.5px; background: var(--dimmer); flex-shrink: 0; }
+.consent-heading { font-family: var(--sans); font-weight: 300; font-size: 36px; line-height: 1.2; color: var(--cream); margin-bottom: 28px; letter-spacing: -0.01em; }
+.consent-heading strong { font-weight: 500; }
+.consent-body { font-size: 11px; color: var(--dim); line-height: 2.1; margin-bottom: 32px; max-width: 560px; }
+.consent-body p + p { margin-top: 10px; }
+.consent-file {
+  border: 0.5px solid var(--navy-border); padding: 18px 22px;
+  margin-bottom: 32px; max-width: 380px; position: relative;
+}
+.consent-file-label {
+  position: absolute; top: -8px; left: 14px;
+  background: var(--navy); padding: 0 8px;
+  font-size: 8px; letter-spacing: 0.2em; color: var(--dimmer);
+}
+.consent-row { display: flex; justify-content: space-between; font-size: 11px; padding: 5px 0; border-bottom: 0.5px solid var(--dimmer); }
+.consent-row:last-child { border-bottom: none; }
+.consent-row-label { color: var(--dimmer); }
+.consent-row-val { color: var(--cream-dim); }
+.consent-actions { display: flex; gap: 12px; align-items: center; }
+.btn-primary {
+  background: transparent; border: 0.5px solid var(--navy-border-mid);
+  color: var(--cream-dim); font-family: var(--mono); font-size: 10px;
+  letter-spacing: 0.18em; padding: 12px 28px; border-radius: 3px;
+  cursor: pointer; transition: all 0.2s; text-transform: uppercase;
+}
+.btn-primary:hover { background: var(--navy-light); border-color: var(--blue-accent); color: var(--cream); }
+.btn-skip { background: none; border: none; color: var(--dimmer); font-family: var(--mono); font-size: 9px; letter-spacing: 0.15em; cursor: pointer; transition: color 0.2s; }
+.btn-skip:hover { color: var(--dim); }
+
+/* ════════════════════════════════════════
+   CHIP IMPLANT SCREEN
+════════════════════════════════════════ */
+#screen-chip { background: #020d15; }
+.chip-inner { text-align: center; position: relative; }
+.chip-title { font-size: 9px; letter-spacing: 0.35em; color: var(--dimmer); margin-bottom: 32px; }
+.chip-svg-wrap { margin: 0 auto 32px; display: block; }
+.chip-msg { font-size: 11px; color: var(--dim); letter-spacing: 0.12em; line-height: 2; }
+.chip-progress-ring { transform: rotate(-90deg); }
+.chip-status { font-size: 10px; letter-spacing: 0.2em; color: var(--blue-accent); margin-top: 16px; }
+
+/* ════════════════════════════════════════
+   CHARACTER SELECTION
+════════════════════════════════════════ */
+#screen-chars { background: var(--navy); flex-direction: column; }
+.chars-header { text-align: center; margin-bottom: 36px; }
+.chars-eyebrow { font-size: 9px; letter-spacing: 0.38em; color: var(--dimmer); margin-bottom: 10px; }
+.chars-title { font-family: var(--sans); font-weight: 300; font-size: 28px; color: var(--cream); letter-spacing: 0.06em; }
+.chars-sub { font-size: 10px; color: var(--dimmer); letter-spacing: 0.15em; margin-top: 6px; }
+.chars-divider { width: 48px; height: 0.5px; background: var(--dimmer); margin: 14px auto 0; }
+.chars-grid { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; max-width: 900px; padding: 0 20px; }
+.char-card {
+  width: 110px; background: var(--navy-mid); border: 0.5px solid var(--dimmer);
+  border-radius: 6px; padding: 16px 10px 14px; cursor: pointer;
+  text-align: center; transition: border-color 0.25s, background 0.25s, transform 0.15s;
+  position: relative;
+}
+.char-card:hover { background: var(--navy-light); border-color: var(--navy-border); transform: translateY(-2px); }
+.char-card.selected { background: #0e2236; border-color: var(--blue-accent); border-width: 1px; }
+.char-avatar {
+  width: 44px; height: 44px; border-radius: 50%; margin: 0 auto 12px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px; font-weight: 500; border: 0.5px solid var(--dimmer);
+}
+.char-name { font-size: 11px; letter-spacing: 0.07em; margin-bottom: 4px; color: var(--cream-dim); }
+.char-card.selected .char-name { color: var(--blue-glow); }
+.char-dept { font-size: 8px; color: var(--dimmer); letter-spacing: 0.06em; margin-bottom: 10px; line-height: 1.5; }
+.char-tier-badge {
+  display: inline-block; font-size: 8px; letter-spacing: 0.1em;
+  padding: 2px 7px; border-radius: 2px;
+}
+.tier-1 { background: #1a1010; color: #6a3a3a; border: 0.5px solid #3a1a1a; }
+.tier-2 { background: #101a20; color: #3a6a7a; border: 0.5px solid #1a3a4a; }
+.tier-4 { background: #101820; color: #3a5a9a; border: 0.5px solid #1a2a5a; }
+.tier-5 { background: #180f28; color: #7a3abf; border: 0.5px solid #3a1a5a; }
+.char-locked-overlay {
+  position: absolute; inset: 0; border-radius: 6px;
+  background: rgba(8,16,24,0.6);
+  display: flex; align-items: center; justify-content: center;
+  opacity: 0; transition: opacity 0.2s;
+}
+.chars-confirm { margin-top: 28px; text-align: center; }
+.chars-confirm-btn {
+  background: transparent; border: 0.5px solid var(--navy-border-mid);
+  color: var(--cream-dim); font-family: var(--mono); font-size: 10px;
+  letter-spacing: 0.2em; padding: 12px 36px; border-radius: 3px;
+  cursor: pointer; transition: all 0.25s; text-transform: uppercase;
+}
+.chars-confirm-btn:hover { background: var(--navy-light); border-color: var(--blue-accent); color: var(--cream); }
+.chars-hint { font-size: 8px; color: var(--dimmer); letter-spacing: 0.12em; margin-top: 10px; }
+.chars-dialogue { font-size: 10px; color: var(--dim); letter-spacing: 0.08em; margin-top: 8px; min-height: 20px; font-style: italic; transition: opacity 0.3s; }
+
+/* ════════════════════════════════════════
+   GAME SCREEN (3D CONTAINER)
+════════════════════════════════════════ */
+#screen-game { background: var(--navy); cursor: crosshair; }
+#three-canvas { position: fixed; inset: 0; }
+
+/* HUD */
+.hud { position: fixed; z-index: 100; font-family: var(--mono); }
+.hud-panel {
+  background: rgba(8,18,28,0.92); border: 0.5px solid var(--dimmer);
+  border-radius: 5px; padding: 10px 12px;
+  backdrop-filter: blur(4px);
+  transition: all 0.25s ease;
+}
+.hud-panel.collapsed .hud-body { display: none; }
+.hud-label {
+  font-size: 8px; letter-spacing: 0.22em; color: var(--dimmer);
+  text-transform: uppercase; margin-bottom: 8px;
+  display: flex; justify-content: space-between; align-items: center;
+  cursor: pointer; user-select: none;
+}
+.hud-label .hud-toggle { font-size: 10px; color: var(--dimmer); transition: transform 0.2s; }
+.hud-panel.collapsed .hud-toggle { transform: rotate(-90deg); }
+
+/* HUD — Character (top-left) */
+#hud-char { top: 16px; left: 16px; }
+.char-pill { display: flex; align-items: center; gap: 10px; }
+.char-dot {
+  width: 32px; height: 32px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 500; flex-shrink: 0;
+}
+.char-nm { font-size: 12px; color: var(--cream); letter-spacing: 0.06em; }
+.char-cl { font-size: 9px; color: var(--dim); letter-spacing: 0.08em; margin-top: 2px; }
+
+/* HUD — Camera (top-right) */
+#hud-camera { top: 16px; right: 16px; }
+.cam-list { display: flex; flex-direction: column; gap: 4px; }
+.cam-item {
+  display: flex; align-items: center; gap: 8px;
+  padding: 5px 8px; border-radius: 3px; cursor: pointer;
+  border: 0.5px solid transparent; transition: all 0.2s;
+}
+.cam-item:hover { background: var(--navy-light); }
+.cam-item.active { background: #0e2236; border-color: var(--dimmer); }
+.cam-item-icon { width: 14px; height: 14px; flex-shrink: 0; }
+.cam-item-label { font-size: 9px; letter-spacing: 0.1em; color: var(--dimmer); }
+.cam-item.active .cam-item-label { color: var(--cream-dim); }
+
+/* HUD — Floor map (bottom-left) */
+#hud-floor { bottom: 16px; left: 16px; }
+.floor-grid-map { display: grid; gap: 3px; margin-top: 2px; }
+.fmap-cell {
+  width: 16px; height: 16px; border-radius: 2px;
+  border: 0.5px solid transparent;
+  transition: all 0.3s;
+}
+.fmap-cell.room-empty-cell { border-color: var(--dimmer); background: var(--navy-mid); cursor: pointer; }
+.fmap-cell.room-project-cell { border-color: var(--navy-border); background: #0e2236; cursor: pointer; }
+.fmap-cell.room-current { background: var(--blue-accent) !important; border-color: var(--blue-glow) !important; }
+.fmap-cell.room-blank { background: transparent; border-color: transparent; }
+.fmap-cell.room-visited { opacity: 0.7; }
+.fmap-legend { display: flex; gap: 8px; margin-top: 8px; }
+.fmap-legend-item { display: flex; align-items: center; gap: 4px; font-size: 7px; color: var(--dimmer); letter-spacing: 0.08em; }
+.fmap-legend-dot { width: 7px; height: 7px; border-radius: 1px; }
+
+/* HUD — Building (bottom-right) */
+#hud-building { bottom: 16px; right: 16px; }
+.building-floors { display: flex; flex-direction: column; gap: 3px; }
+.bfloor-row { display: flex; align-items: center; gap: 8px; }
+.bfloor-num { font-size: 8px; color: var(--dimmer); width: 10px; text-align: right; flex-shrink: 0; }
+.bfloor-bar {
+  height: 14px; width: 110px; border: 0.5px solid var(--dimmer);
+  border-radius: 2px; background: var(--navy-mid);
+  display: flex; align-items: center; padding: 0 7px;
+  cursor: pointer; transition: all 0.2s; position: relative; overflow: hidden;
+}
+.bfloor-bar:hover { border-color: var(--navy-border); background: var(--navy-light); }
+.bfloor-bar.current-floor { background: #0e2236; border-color: var(--blue-accent); }
+.bfloor-bar.locked-floor { opacity: 0.28; cursor: not-allowed; }
+.bfloor-name { font-size: 8px; color: var(--dimmer); letter-spacing: 0.06em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bfloor-bar.current-floor .bfloor-name { color: var(--cream-dim); }
+.bfloor-you { font-size: 7px; color: var(--blue-accent); margin-left: auto; }
+
+/* Floor entry banner */
+#floor-banner {
+  position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%);
+  z-index: 200; text-align: center; pointer-events: none;
+  opacity: 0; transition: opacity 0.4s;
+}
+.floor-banner-code { font-size: 64px; color: rgba(58,138,191,0.08); letter-spacing: 0.2em; font-family: var(--sans); font-weight: 300; }
+.floor-banner-name { font-size: 11px; letter-spacing: 0.3em; color: var(--dim); }
+
+/* Room card overlay */
+#room-card {
+  position: fixed; top: 0; right: 0; width: 380px; height: 100%;
+  background: rgba(8,15,24,0.97); border-left: 0.5px solid var(--navy-border);
+  z-index: 150; display: flex; flex-direction: column;
+  transform: translateX(100%); transition: transform 0.5s cubic-bezier(0.22,1,0.36,1);
+}
+#room-card.open { transform: translateX(0); }
+.rc-header { padding: 20px 18px 16px; border-bottom: 0.5px solid var(--dimmer); }
+.rc-eyebrow { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.rc-room-id { font-size: 8px; letter-spacing: 0.25em; color: var(--dimmer); }
+.rc-close {
+  width: 20px; height: 20px; border: 0.5px solid var(--dimmer); border-radius: 2px;
+  display: flex; align-items: center; justify-content: center; cursor: pointer;
+  transition: all 0.2s;
+}
+.rc-close:hover { border-color: var(--navy-border); background: var(--navy-light); }
+.rc-title { font-size: 16px; color: var(--cream); letter-spacing: 0.04em; line-height: 1.3; margin-bottom: 5px; font-weight: 500; }
+.rc-subtitle { font-size: 9px; color: var(--dim); letter-spacing: 0.12em; }
+.rc-image {
+  width: 100%; height: 120px; background: var(--navy-mid);
+  border-bottom: 0.5px solid var(--dimmer); position: relative; overflow: hidden;
+  display: flex; align-items: center; justify-content: center;
+}
+.rc-img-real { width: 100%; height: 100%; object-fit: cover; }
+.rc-img-placeholder { width: 100%; height: 100%; display: grid; gap: 2px; padding: 6px; }
+.rc-body { padding: 16px 18px; flex: 1; overflow-y: auto; }
+.rc-desc { font-size: 10px; color: #5a8aaa; line-height: 1.9; margin-bottom: 16px; letter-spacing: 0.03em; }
+.rc-tags { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 16px; }
+.rc-tag { font-size: 8px; letter-spacing: 0.1em; padding: 3px 8px; border: 0.5px solid var(--dimmer); color: var(--dim); border-radius: 2px; background: var(--navy-mid); }
+.rc-metrics { border-top: 0.5px solid var(--dimmer); padding-top: 14px; display: flex; flex-direction: column; gap: 7px; }
+.rc-metric { display: flex; justify-content: space-between; font-size: 9px; }
+.rc-metric-label { color: var(--dimmer); letter-spacing: 0.1em; }
+.rc-metric-val { color: var(--cream-dim); letter-spacing: 0.06em; }
+.rc-footer { padding: 14px 18px; border-top: 0.5px solid var(--dimmer); display: flex; gap: 8px; }
+.rc-btn {
+  flex: 1; font-family: var(--mono); font-size: 9px; letter-spacing: 0.15em;
+  padding: 9px; border-radius: 3px; cursor: pointer; text-align: center;
+  transition: all 0.2s; text-transform: uppercase;
+}
+.rc-btn-primary { background: #0e2e4a; border: 0.5px solid var(--navy-border-mid); color: var(--blue-glow); }
+.rc-btn-primary:hover { background: #163a5a; }
+.rc-btn-secondary { background: transparent; border: 0.5px solid var(--dimmer); color: var(--dim); }
+.rc-btn-secondary:hover { background: var(--navy-light); }
+
+/* Glitch overlay for empty rooms */
+#glitch-overlay {
+  position: fixed; inset: 0; z-index: 160; pointer-events: none;
+  opacity: 0; transition: opacity 0.4s;
+}
+#glitch-canvas { width: 100%; height: 100%; }
+
+/* Access denied flash */
+#access-denied {
+  position: fixed; inset: 0; z-index: 170;
+  border: 2px solid var(--red); pointer-events: none;
+  opacity: 0; transition: opacity 0.1s;
+}
+
+/* Minimap current position dot */
+.fmap-cell.room-current::after {
+  content: ''; position: absolute;
+  width: 4px; height: 4px; border-radius: 50%;
+  background: white; top: 50%; left: 50%;
+  transform: translate(-50%,-50%);
+}
+.fmap-cell { position: relative; }
+
+/* Controls hint */
+#controls-hint {
+  position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%);
+  font-size: 8px; letter-spacing: 0.2em; color: var(--dimmer);
+  z-index: 101; pointer-events: none; white-space: nowrap;
+  opacity: 1; transition: opacity 1s;
+}
+
+/* Door sensor flash */
+#sensor-flash {
+  position: fixed; top: 50%; right: calc(380px + 20px);
+  transform: translateY(-50%);
+  width: 3px; height: 24px; border-radius: 1px;
+  background: var(--green); opacity: 0;
+  transition: opacity 0.1s; z-index: 101;
+}
+
+/* ════════════════════════════════════════
+   ANIMATIONS
+════════════════════════════════════════ */
+@keyframes blink { 0%,100%{opacity:0.25} 50%{opacity:1} }
+@keyframes cursorBlink { 0%,100%{opacity:1} 50%{opacity:0} }
+@keyframes fadeInLine { to { opacity: 1; } }
+@keyframes fadeUp { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }
+@keyframes chipSpin { from { stroke-dashoffset: 220; } to { stroke-dashoffset: 0; } }
+</style>
+</head>
+<body>
+
+<!-- MOBILE GATE -->
+<div id="screen-mobile" class="screen">
+  <div class="mobile-logo">Lumon Industries · Personnel System</div>
+  <div class="mobile-title">This terminal requires<br>workstation access</div>
+  <div class="mobile-divider"></div>
+  <div class="mobile-msg">
+    Your device clearance level is insufficient to access the severed floor.<br><br>
+    <em>Please return via a desktop workstation</em> to begin your severance procedure.
+  </div>
+  <button class="mobile-copy-btn" onclick="copyLink()">Copy Terminal Link</button>
+  <div class="mobile-footer">Lumon Industries · Employee Portfolio Terminal · Confidential</div>
+</div>
+
+<!-- LOADING SCREEN -->
+<div id="screen-loading" class="screen">
+  <canvas id="loading-canvas"></canvas>
+  <div class="loading-ui">
+    <div class="loading-brand">Lumon Industries</div>
+    <div class="loading-title">Employee Terminal</div>
+    <div class="loading-line"></div>
+    <div class="loading-hint" id="loading-hint">initializing severed floor access</div>
+  </div>
+  <div class="loading-progress">
+    <div class="loading-bar-track"><div class="loading-bar-fill" id="loading-bar"></div></div>
+    <div class="loading-pct" id="loading-pct">000%</div>
+  </div>
+  <div id="loading-cursor"></div>
+</div>
+
+<!-- BOOT SCREEN -->
+<div id="screen-boot" class="screen off">
+  <div class="boot-lines" id="boot-lines"></div>
+</div>
+
+<!-- CONSENT SCREEN -->
+<div id="screen-consent" class="screen off">
+  <div class="consent-inner">
+    <div class="consent-logo">Lumon Industries — Severance Authorization</div>
+    <div class="consent-heading">You are about to undergo<br><strong>memory severance</strong></div>
+    <div class="consent-body">
+      <p>This procedure will divide your consciousness into two distinct personas. Your innie — the self that exists within this terminal — will have no knowledge of your life outside.</p>
+      <p>By proceeding, you authorize Lumon Industries to partition your neural pathways and assign you to the appropriate floor based on your clearance level.</p>
+    </div>
+    <div class="consent-file">
+      <div class="consent-file-label">Employee File</div>
+      <div class="consent-row"><span class="consent-row-label">Name</span><span class="consent-row-val">Shubham Dekatey</span></div>
+      <div class="consent-row"><span class="consent-row-label">Track</span><span class="consent-row-val">Data / ML Engineering</span></div>
+      <div class="consent-row"><span class="consent-row-label">Status</span><span class="consent-row-val" style="color:var(--green)">Active</span></div>
+      <div class="consent-row"><span class="consent-row-label">Floors</span><span class="consent-row-val">Clearance Pending</span></div>
+    </div>
+    <div class="consent-actions">
+      <button class="btn-primary" onclick="startChip()">Authorize Severance</button>
+      <button class="btn-skip" onclick="skipToChars()">Skip Procedure ↗</button>
+    </div>
+  </div>
+</div>
+
+<!-- CHIP IMPLANT SCREEN -->
+<div id="screen-chip" class="screen off">
+  <div class="chip-inner">
+    <div class="chip-title">Severance Chip Implantation</div>
+    <svg class="chip-svg-wrap" width="160" height="160" viewBox="0 0 160 160">
+      <circle cx="80" cy="80" r="60" fill="none" stroke="#0e2236" stroke-width="1"/>
+      <circle cx="80" cy="80" r="60" fill="none" stroke="#1a4a6a" stroke-width="0.5" stroke-dasharray="4 6"/>
+      <circle id="chip-ring" cx="80" cy="80" r="35" fill="none" stroke="#3a8abf" stroke-width="1.5" stroke-dasharray="220" stroke-dashoffset="220" class="chip-progress-ring"/>
+      <circle cx="80" cy="80" r="18" fill="#0e2236" stroke="#1e4a6a" stroke-width="0.5"/>
+      <rect x="73" y="73" width="14" height="14" rx="2" fill="#1a3a5a" stroke="#2e6a9a" stroke-width="0.5"/>
+      <line x1="80" y1="20" x2="80" y2="45" stroke="#1a3a5a" stroke-width="0.5"/>
+      <line x1="80" y1="115" x2="80" y2="140" stroke="#1a3a5a" stroke-width="0.5"/>
+      <line x1="20" y1="80" x2="45" y2="80" stroke="#1a3a5a" stroke-width="0.5"/>
+      <line x1="115" y1="80" x2="140" y2="80" stroke="#1a3a5a" stroke-width="0.5"/>
+      <circle cx="80" cy="80" r="2" fill="#3a8abf" id="chip-dot"/>
+    </svg>
+    <div class="chip-msg" id="chip-msg">Preparing neural interface...</div>
+    <div class="chip-status" id="chip-status"></div>
+  </div>
+</div>
+
+<!-- CHARACTER SELECTION -->
+<div id="screen-chars" class="screen off">
+  <div class="chars-header">
+    <div class="chars-eyebrow">Lumon Industries — Personnel Assignment</div>
+    <div class="chars-title">Select Your Employee</div>
+    <div class="chars-sub">Your clearance level determines floor access</div>
+    <div class="chars-divider"></div>
+  </div>
+  <div class="chars-grid" id="chars-grid"></div>
+  <div class="chars-dialogue" id="chars-dialogue"></div>
+  <div class="chars-confirm">
+    <button class="chars-confirm-btn" id="chars-btn" onclick="confirmChar()">Confirm Employee</button>
+    <div class="chars-hint">By proceeding you authorize severance of non-work memories</div>
+  </div>
+</div>
+
+<!-- GAME SCREEN -->
+<div id="screen-game" class="screen off">
+  <canvas id="three-canvas"></canvas>
+
+  <!-- HUD: Character (top-left) -->
+  <div class="hud hud-panel" id="hud-char">
+    <div class="hud-label" onclick="toggleHud('hud-char')">Active Employee <span class="hud-toggle">−</span></div>
+    <div class="hud-body">
+      <div class="char-pill">
+        <div class="char-dot" id="hud-avatar">MS</div>
+        <div>
+          <div class="char-nm" id="hud-charname">Mark S.</div>
+          <div class="char-cl" id="hud-tier">Clearance · Tier 2</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- HUD: Camera (top-right) -->
+  <div class="hud hud-panel" id="hud-camera">
+    <div class="hud-label" onclick="toggleHud('hud-camera')">Camera Angle <span class="hud-toggle">−</span></div>
+    <div class="hud-body">
+      <div class="cam-list">
+        <div class="cam-item active" id="cam-fp" onclick="setCamera('fp')">
+          <svg class="cam-item-icon" viewBox="0 0 14 14" fill="none">
+            <rect x="1" y="4" width="12" height="9" rx="1" stroke="#3a6a8a" stroke-width="0.7"/>
+            <circle cx="7" cy="8" r="2.5" stroke="#3a6a8a" stroke-width="0.7"/>
+          </svg>
+          <span class="cam-item-label">First Person</span>
+        </div>
+        <div class="cam-item" id="cam-tp" onclick="setCamera('tp')">
+          <svg class="cam-item-icon" viewBox="0 0 14 14" fill="none">
+            <circle cx="7" cy="9" r="3" stroke="#3a6a8a" stroke-width="0.7"/>
+            <path d="M7 6V3M4.5 7.5L2.5 5.5M9.5 7.5L11.5 5.5" stroke="#3a6a8a" stroke-width="0.7"/>
+          </svg>
+          <span class="cam-item-label">Third Person</span>
+        </div>
+        <div class="cam-item" id="cam-iso" onclick="setCamera('iso')">
+          <svg class="cam-item-icon" viewBox="0 0 14 14" fill="none">
+            <path d="M7 2L13 5.5V8.5L7 12L1 8.5V5.5L7 2Z" stroke="#3a6a8a" stroke-width="0.7"/>
+          </svg>
+          <span class="cam-item-label">Isometric</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- HUD: Floor map (bottom-left) -->
+  <div class="hud hud-panel" id="hud-floor">
+    <div class="hud-label" onclick="toggleHud('hud-floor')">
+      <span id="hud-floor-name">Floor Map</span>
+      <span class="hud-toggle">−</span>
+    </div>
+    <div class="hud-body">
+      <div class="floor-grid-map" id="floor-grid-map"></div>
+      <div class="fmap-legend">
+        <div class="fmap-legend-item"><div class="fmap-legend-dot" style="background:#3a8abf;"></div>Here</div>
+        <div class="fmap-legend-item"><div class="fmap-legend-dot" style="background:#0e2236;border:0.5px solid #1e4a6a;"></div>Project</div>
+        <div class="fmap-legend-item"><div class="fmap-legend-dot" style="background:#0d1f35;border:0.5px solid #1a3a55;"></div>Empty</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- HUD: Building (bottom-right) -->
+  <div class="hud hud-panel" id="hud-building">
+    <div class="hud-label" onclick="toggleHud('hud-building')">Building — Lumon HQ <span class="hud-toggle">−</span></div>
+    <div class="hud-body">
+      <div class="building-floors" id="building-floors"></div>
+    </div>
+  </div>
+
+  <!-- Controls hint -->
+  <div id="controls-hint">WASD / Arrow Keys to move · Click room to enter · Click floor in building map to travel</div>
+
+  <!-- Door sensor -->
+  <div id="sensor-flash"></div>
+
+  <!-- Floor entry banner -->
+  <div id="floor-banner">
+    <div class="floor-banner-code" id="banner-code"></div>
+    <div class="floor-banner-name" id="banner-name"></div>
+  </div>
+</div>
+
+<!-- Room card overlay -->
+<div id="room-card">
+  <div class="rc-header">
+    <div class="rc-eyebrow">
+      <span class="rc-room-id" id="rc-room-id">Room —</span>
+      <div class="rc-close" onclick="closeRoomCard()">
+        <svg width="8" height="8" viewBox="0 0 8 8" fill="none">
+          <path d="M1 1l6 6M7 1L1 7" stroke="#3a6a8a" stroke-width="0.8"/>
+        </svg>
+      </div>
+    </div>
+    <div class="rc-title" id="rc-title">Project Title</div>
+    <div class="rc-subtitle" id="rc-subtitle">Subtitle</div>
+  </div>
+  <div class="rc-image" id="rc-image"></div>
+  <div class="rc-body">
+    <div class="rc-desc" id="rc-desc">Description</div>
+    <div class="rc-tags" id="rc-tags"></div>
+    <div class="rc-metrics" id="rc-metrics"></div>
+  </div>
+  <div class="rc-footer">
+    <div class="rc-btn rc-btn-primary" id="rc-link" onclick="openProjectLink()">View Project ↗</div>
+    <div class="rc-btn rc-btn-secondary" id="rc-github" onclick="openGithubLink()">GitHub ↗</div>
+  </div>
+</div>
+
+<!-- Glitch overlay -->
+<div id="glitch-overlay">
+  <canvas id="glitch-canvas"></canvas>
+</div>
+
+<!-- Access denied flash -->
+<div id="access-denied"></div>
+
+<!-- Three.js -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+<script>
+// ════════════════════════════════════════
+// DATA
+// ════════════════════════════════════════
+const DATA = {
+  building: {
+    name: "Lumon Industries",
+    subtitle: "Employee Portfolio Terminal",
+    floors: [
+      {
+        id: 1, name: "Data Engineering", code: "DE", color: "#1a4a6a",
+        rooms: [
+          { id:"1-1", type:"project", title:"Real-Time Kafka Pipeline", subtitle:"Streaming Infrastructure · 2024", description:"End-to-end streaming pipeline ingesting 2.4M events/day across 6 Kafka topics into Snowflake via dbt transformations. Reduced data latency from 4h batch to 90s.", tags:["Kafka","Snowflake","dbt","Python","Spark"], metrics:[{label:"Latency reduction",value:"97%"},{label:"Events/day",value:"2.4M"},{label:"Status",value:"Production"}], link:"#", github:"#" },
+          { id:"1-2", type:"project", title:"Databricks Lakehouse Migration", subtitle:"Cloud Architecture · 2024", description:"Migrated legacy on-prem Hadoop cluster to Databricks Delta Lake. Unified batch and streaming workloads, reducing infra cost by 40% and query time by 3x.", tags:["Databricks","Delta Lake","PySpark","Azure"], metrics:[{label:"Cost reduction",value:"40%"},{label:"Query speedup",value:"3x"},{label:"Status",value:"Production"}], link:"#", github:"#" },
+          { id:"1-3", type:"empty" },
+          { id:"1-4", type:"project", title:"Snowflake Data Vault", subtitle:"Data Modeling · 2023", description:"Designed and implemented a Data Vault 2.0 model in Snowflake for a retail client, enabling historical tracking across 80+ source tables.", tags:["Snowflake","Data Vault","dbt","SQL"], metrics:[{label:"Source tables",value:"80+"},{label:"Load time",value:"↓ 60%"},{label:"Status",value:"Production"}], link:"#", github:"#" },
+          { id:"1-5", type:"empty" }
+        ],
+        layout: [[1,1,0,0],[1,1,1,0],[0,1,0,0],[0,1,1,1]]
+      },
+      {
+        id: 2, name: "ML & AI", code: "ML", color: "#2a1a5a",
+        rooms: [
+          { id:"2-1", type:"project", title:"LangGraph Agent Orchestration", subtitle:"Agentic AI · 2025", description:"Multi-agent pipeline using LangGraph for automated document processing. Agents coordinate extraction, classification, and routing across 12 document types.", tags:["LangGraph","Python","OpenAI","Snowflake"], metrics:[{label:"Doc types",value:"12"},{label:"Accuracy",value:"94%"},{label:"Status",value:"Production"}], link:"#", github:"#" },
+          { id:"2-2", type:"project", title:"BERT Sentiment Classifier", subtitle:"NLP · 2024", description:"Fine-tuned BERT transformer for domain-specific sentiment analysis on financial news. Deployed via FastAPI with MLflow tracking.", tags:["BERT","MLflow","FastAPI","HuggingFace"], metrics:[{label:"F1 Score",value:"0.91"},{label:"Inference",value:"120ms"},{label:"Status",value:"Production"}], link:"#", github:"#" },
+          { id:"2-3", type:"empty" },
+          { id:"2-4", type:"project", title:"MLflow Experiment Tracker", subtitle:"MLOps · 2023", description:"Centralized ML experiment tracking system using MLflow integrated with Databricks. Tracks 200+ experiments across 6 model families.", tags:["MLflow","Databricks","Python","Docker"], metrics:[{label:"Experiments",value:"200+"},{label:"Model families",value:"6"},{label:"Status",value:"Active"}], link:"#", github:"#" }
+        ],
+        layout: [[1,1,0],[0,1,1],[0,0,1],[0,1,1]]
+      },
+      {
+        id: 3, name: "BI & Visualization", code: "BI", color: "#1a3a2a",
+        rooms: [
+          { id:"3-1", type:"project", title:"Power BI Executive Dashboard", subtitle:"Business Intelligence · 2024", description:"Enterprise-wide KPI dashboard for C-suite with real-time Snowflake integration. 14 report pages covering sales, ops, and finance.", tags:["Power BI","Snowflake","DAX","SQL"], metrics:[{label:"Report pages",value:"14"},{label:"Refresh",value:"Real-time"},{label:"Users",value:"200+"}], link:"#", github:"#" },
+          { id:"3-2", type:"empty" },
+          { id:"3-3", type:"project", title:"D3.js Wage Visualization Map", subtitle:"Data Visualization · 2024", description:"Interactive U.S. county choropleth map with OFLC/OEWS wage data. SOC code autocomplete, L1–L4 metric toggles, county rankings.", tags:["D3.js","TopoJSON","JavaScript","HTML"], metrics:[{label:"Counties",value:"3,000+"},{label:"SOC codes",value:"800+"},{label:"Status",value:"Live"}], link:"#", github:"#" }
+        ],
+        layout: [[1,0,1],[1,1,1],[0,1,0]]
+      },
+      {
+        id: 4, name: "Tools & Automation", code: "TA", color: "#3a2a1a",
+        rooms: [
+          { id:"4-1", type:"project", title:"n8n Resume Pipeline", subtitle:"Automation · 2025", description:"Automated job application pipeline: LinkedIn scraper → Gemini resume rewriter → Google Docs per role → morning email digest. Zero manual effort per application.", tags:["n8n","Gemini API","Google Docs","Apify"], metrics:[{label:"Time saved",value:"2h/day"},{label:"Roles tracked",value:"50+"},{label:"Status",value:"Active"}], link:"#", github:"#" },
+          { id:"4-2", type:"project", title:"Instagram Media Archiver", subtitle:"Browser Extension · 2024", description:"Firefox extension with MAIN-world fetch interceptor, MutationObserver decoration, and blob-to-base64 CDN workaround for archiving saved posts.", tags:["JavaScript","WebExtensions","XPath","DOM"], metrics:[{label:"Posts archived",value:"1000+"},{label:"Version",value:"v0.4.2"},{label:"Status",value:"Active"}], link:"#", github:"#" },
+          { id:"4-3", type:"empty" }
+        ],
+        layout: [[1,1,0],[0,1,0],[0,1,1]]
+      },
+      {
+        id: 5, name: "Cloud & Infrastructure", code: "CI", color: "#2a1a1a",
+        rooms: [
+          { id:"5-1", type:"project", title:"Azure Data Factory Pipelines", subtitle:"Cloud ETL · 2023", description:"20+ ADF pipelines orchestrating data movement from SAP, Salesforce, and flat files into Azure Data Lake Gen2 with monitoring and alerting.", tags:["Azure","ADF","Data Lake","ARM"], metrics:[{label:"Pipelines",value:"20+"},{label:"Sources",value:"8"},{label:"SLA",value:"99.9%"}], link:"#", github:"#" },
+          { id:"5-2", type:"empty" },
+          { id:"5-3", type:"empty" }
+        ],
+        layout: [[1,0,0],[1,1,0],[0,1,1]]
+      },
+      {
+        id: 6, name: "Open Source", code: "OS", color: "#1a2a3a",
+        rooms: [
+          { id:"6-1", type:"project", title:"Agile Project Tracker", subtitle:"Web App · 2024", description:"Single-file Kanban board with Google Sheets backend, OAuth, drag-and-drop, and sprint tracking. Built for teams that don't want Jira.", tags:["JavaScript","Google Sheets API","OAuth","HTML"], metrics:[{label:"Columns",value:"Kanban"},{label:"Backend",value:"Sheets"},{label:"Status",value:"Live"}], link:"#", github:"#" },
+          { id:"6-2", type:"empty" },
+          { id:"6-3", type:"project", title:"Streamlit Plot Explorer", subtitle:"Data Tool · 2023", description:"Interactive chart builder with CodeMirror live editor, Plotly.js rendering, and export/share functionality.", tags:["Streamlit","Plotly","Python","CodeMirror"], metrics:[{label:"Chart types",value:"12"},{label:"Export",value:"PNG/SVG"},{label:"Status",value:"Live"}], link:"#", github:"#" }
+        ],
+        layout: [[1,0,1],[1,1,1],[0,0,1]]
+      }
+    ]
+  },
+  characters: [
+    { id:"mark", name:"Mark S.", initials:"MS", dept:"Macro Data Ref.", tier:2, bg:"#0e2236", accent:"#5a9abf", floors:[1,2,3], dialogue:["Welcome back. Your numbers await.","The work is mysterious and important.","Please proceed to your assigned floor."] },
+    { id:"helly", name:"Helly R.", initials:"HR", dept:"Macro Data Ref.", tier:1, bg:"#2e0e0e", accent:"#bf5a5a", floors:[1], dialogue:["I don't want to be here. But here we are.","Floor 1 only. That's my assignment.","Someone tell me what I'm doing."] },
+    { id:"irving", name:"Irving B.", initials:"IB", dept:"MDR / Archives", tier:2, bg:"#0e1a2e", accent:"#5a7abf", floors:[1,2,6], dialogue:["The handbook has answers. Trust it.","Archives hold everything we need.","Discipline is a gift we give ourselves."] },
+    { id:"dylan", name:"Dylan G.", initials:"DG", dept:"Macro Data Ref.", tier:2, bg:"#1a2e0e", accent:"#7abf5a", floors:[1,4], dialogue:["Show me the perks board first.","Overtime contingency — I know how it works.","What's in it for me?"] },
+    { id:"milchick", name:"Milchick", initials:"SM", dept:"Management", tier:4, bg:"#0e1e3a", accent:"#4a7abf", floors:[1,2,3,4,5,6], dialogue:["All floors available to you.","Lumon values your contribution enormously.","Please enjoy full building access."] },
+    { id:"burt", name:"Burt G.", initials:"BG", dept:"Optics & Design", tier:2, bg:"#2e1e0e", accent:"#bf9a3a", floors:[3,6], dialogue:["O&D is not what you think it is.","The art on these walls tells a story.","Have you seen the goats?"] },
+    { id:"cobel", name:"Cobel", initials:"HC", dept:"Dept. Head", tier:5, bg:"#1e0e2e", accent:"#9a3abf", floors:[1,2,3,4,5,6], dialogue:["I see everything that happens here.","Full clearance has its responsibilities.","Do not test me."] }
+  ]
+};
+
+// ════════════════════════════════════════
+// STATE
+// ════════════════════════════════════════
+let state = {
+  char: null,
+  currentFloor: 0,
+  currentRoom: null,
+  visitedRooms: new Set(),
+  cameraMode: 'fp',
+  roomCardOpen: false
+};
+
+// ════════════════════════════════════════
+// MOBILE GATE
+// ════════════════════════════════════════
+function copyLink() {
+  navigator.clipboard.writeText(window.location.href).catch(() => {});
+  const btn = document.querySelector('.mobile-copy-btn');
+  btn.textContent = 'Link Copied';
+  setTimeout(() => btn.textContent = 'Copy Terminal Link', 2000);
+}
+
+// ════════════════════════════════════════
+// LOADING SCREEN
+// ════════════════════════════════════════
+(function initLoading() {
+  const canvas = document.getElementById('loading-canvas');
+  const ctx = canvas.getContext('2d');
+  const cursor = document.getElementById('loading-cursor');
+  const bar = document.getElementById('loading-bar');
+  const pct = document.getElementById('loading-pct');
+  const hint = document.getElementById('loading-hint');
+
+  let W, H, cells = [];
+  let mx = -9999, my = -9999;
+  let progress = 0, done = false, triggered = false;
+  let raf;
+  const DIGITS = '0123456789';
+  const GAP = 20;
+  const CLUSTER_R = 90;
+
+  function resize() {
+    W = canvas.width = window.innerWidth;
+    H = canvas.height = window.innerHeight;
+    cells = [];
+    const cols = Math.ceil(W / GAP) + 1;
+    const rows = Math.ceil(H / GAP) + 1;
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        cells.push({ x: c * GAP, y: r * GAP, v: DIGITS[Math.floor(Math.random()*10)], t: Math.random()*3000, a: 0.06 + Math.random()*0.1 });
+      }
+    }
+  }
+
+  function draw(ts) {
+    raf = requestAnimationFrame(draw);
+    ctx.clearRect(0, 0, W, H);
+    cells.forEach(cell => {
+      if (ts - cell.t > 600 + Math.random()*2200) { cell.v = DIGITS[Math.floor(Math.random()*10)]; cell.t = ts; }
+      const d = Math.hypot(mx - cell.x, my - cell.y);
+      let scale = 1, alpha = cell.a;
+      if (d < CLUSTER_R) { const t = 1 - d / CLUSTER_R; scale = 1 + t * 3.2; alpha = Math.min(cell.a + t * 0.75, 0.9); }
+      const sz = Math.round(11 * scale);
+      ctx.font = `${sz}px 'Courier New', monospace`;
+      ctx.fillStyle = `rgba(190,215,235,${alpha})`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(cell.v, cell.x, cell.y);
+    });
+
+    // LUMON cluster formation at center when complete
+    if (done && Math.random() < 0.002) {
+      const word = 'LUMON';
+      const startX = W/2 - (word.length * GAP * 1.5) / 2;
+      word.split('').forEach((ch, i) => {
+        const tx = startX + i * GAP * 1.5, ty = H / 2;
+        cells.forEach(cell => {
+          if (Math.hypot(cell.x - tx, cell.y - ty) < 8) cell.v = ch;
+        });
+      });
+    }
+
+    if (!done) {
+      progress = Math.min(progress + 0.35, 100);
+      bar.style.width = progress + '%';
+      pct.textContent = String(Math.floor(progress)).padStart(3,'0') + '%';
+      if (progress >= 100) {
+        done = true;
+        hint.textContent = 'click · press any key · or wait';
+        hint.style.color = '#3a7abf';
+        setTimeout(() => { if (!triggered) trigger(); }, 4000);
+      }
+    }
+  }
+
+  function trigger() {
+    if (triggered) return; triggered = true;
+    cancelAnimationFrame(raf);
+    transitionTo('screen-loading', 'screen-boot');
+    setTimeout(runBoot, 100);
+  }
+
+  window.addEventListener('mousemove', e => {
+    mx = e.clientX; my = e.clientY;
+    cursor.style.left = mx + 'px'; cursor.style.top = my + 'px'; cursor.style.opacity = '1';
+  });
+  window.addEventListener('mouseleave', () => { mx = -9999; my = -9999; cursor.style.opacity = '0'; });
+  document.getElementById('screen-loading').addEventListener('click', () => { if (done) trigger(); });
+  document.addEventListener('keydown', () => { if (done && !triggered) trigger(); });
+
+  window.addEventListener('resize', resize);
+  resize();
+  requestAnimationFrame(draw);
+})();
+
+// ════════════════════════════════════════
+// TRANSITIONS
+// ════════════════════════════════════════
+function transitionTo(fromId, toId, delay=0) {
+  const from = document.getElementById(fromId);
+  const to = document.getElementById(toId);
+  from.classList.add('off');
+  setTimeout(() => {
+    from.classList.add('gone');
+    to.classList.remove('gone');
+    requestAnimationFrame(() => to.classList.remove('off'));
+  }, 900 + delay);
+}
+
+// ════════════════════════════════════════
+// BOOT SEQUENCE
+// ════════════════════════════════════════
+function runBoot() {
+  const lines = [
+    { text: 'LUMON INDUSTRIES — SEVERED FLOOR TERMINAL v4.2.1', cls: '', delay: 0 },
+    { text: '', cls: '', delay: 80 },
+    { text: 'Initializing neural partition module...', cls: 'boot-ok', delay: 160 },
+    { text: 'Loading severance chip firmware...', cls: 'boot-ok', delay: 320 },
+    { text: 'Mounting severed floor filesystem...', cls: 'boot-ok', delay: 480 },
+    { text: 'Calibrating memory partition boundaries...', cls: 'boot-ok', delay: 700 },
+    { text: 'WARN: Outie memory traces detected — purging...', cls: 'boot-warn', delay: 900 },
+    { text: 'Purge complete. 0 traces remaining.', cls: 'boot-ok', delay: 1100 },
+    { text: 'Initializing floor access control...', cls: 'boot-ok', delay: 1300 },
+    { text: 'Loading personnel registry...', cls: 'boot-ok', delay: 1480 },
+    { text: 'Connecting to Lumon data architecture...', cls: 'boot-ok', delay: 1700 },
+    { text: 'All systems nominal.', cls: 'boot-ok', delay: 1900 },
+    { text: '', cls: '', delay: 2000 },
+    { text: 'Awaiting employee authorization...', cls: '', delay: 2100 },
+  ];
+
+  const container = document.getElementById('boot-lines');
+  container.innerHTML = '';
+  lines.forEach(({ text, cls, delay }) => {
+    setTimeout(() => {
+      const div = document.createElement('div');
+      div.className = 'boot-line' + (cls ? ' ' + cls : '');
+      div.textContent = text;
+      container.appendChild(div);
+    }, delay);
+  });
+
+  setTimeout(() => {
+    transitionTo('screen-boot', 'screen-consent');
+  }, 3200);
+}
+
+// ════════════════════════════════════════
+// CONSENT
+// ════════════════════════════════════════
+function startChip() { transitionTo('screen-consent', 'screen-chip'); runChip(); }
+function skipToChars() { transitionTo('screen-consent', 'screen-chars'); buildCharGrid(); }
+
+// ════════════════════════════════════════
+// CHIP IMPLANT ANIMATION
+// ════════════════════════════════════════
+function runChip() {
+  const ring = document.getElementById('chip-ring');
+  const msg = document.getElementById('chip-msg');
+  const status = document.getElementById('chip-status');
+  const dot = document.getElementById('chip-dot');
+  const steps = [
+    { t:400, msg:'Locating neural interface target...', s:'' },
+    { t:900, msg:'Deploying severance chip...', s:'Inserting...' },
+    { t:1600, msg:'Establishing memory partition...', s:'Partitioning...' },
+    { t:2400, msg:'Binding innie to severed floor...', s:'Binding...' },
+    { t:3000, msg:'Calibrating work/life boundary...', s:'Calibrating...' },
+    { t:3600, msg:'Severance complete.', s:'SUCCESS' },
+  ];
+  steps.forEach(({ t, msg: m, s }) => {
+    setTimeout(() => { msg.textContent = m; status.textContent = s; if (s === 'SUCCESS') status.style.color = '#3a9a5c'; }, t);
+  });
+
+  // Animate ring
+  ring.style.animation = 'chipSpin 3.5s cubic-bezier(0.4,0,0.2,1) forwards';
+  ring.style.strokeDashoffset = '220';
+
+  setTimeout(() => {
+    dot.setAttribute('fill', '#3a9a5c');
+    setTimeout(() => {
+      transitionTo('screen-chip', 'screen-chars');
+      buildCharGrid();
+    }, 800);
+  }, 3700);
+}
+
+// ════════════════════════════════════════
+// CHARACTER GRID
+// ════════════════════════════════════════
+let selectedChar = DATA.characters[0];
+function buildCharGrid() {
+  const grid = document.getElementById('chars-grid');
+  grid.innerHTML = '';
+  DATA.characters.forEach(ch => {
+    const card = document.createElement('div');
+    card.className = 'char-card' + (ch.id === selectedChar.id ? ' selected' : '');
+    card.dataset.id = ch.id;
+    card.innerHTML = `
+      <div class="char-avatar" style="background:${ch.bg};color:${ch.accent};border-color:${ch.accent}33;">${ch.initials}</div>
+      <div class="char-name">${ch.name}</div>
+      <div class="char-dept">${ch.dept}</div>
+      <span class="char-tier-badge tier-${ch.tier}">Tier ${ch.tier}</span>
+    `;
+    card.addEventListener('click', () => selectChar(ch));
+    grid.appendChild(card);
+  });
+  updateCharUI();
+}
+
+function selectChar(ch) {
+  selectedChar = ch;
+  document.querySelectorAll('.char-card').forEach(c => c.classList.remove('selected'));
+  document.querySelector(`[data-id="${ch.id}"]`).classList.add('selected');
+  updateCharUI();
+}
+
+function updateCharUI() {
+  const ch = selectedChar;
+  document.getElementById('chars-btn').textContent = `Confirm — ${ch.name}`;
+  const dialogue = ch.dialogue[Math.floor(Math.random() * ch.dialogue.length)];
+  const d = document.getElementById('chars-dialogue');
+  d.style.opacity = '0';
+  setTimeout(() => { d.textContent = `"${dialogue}"`; d.style.opacity = '1'; }, 200);
+}
+
+function confirmChar() {
+  state.char = selectedChar;
+  state.currentFloor = selectedChar.floors[0] - 1;
+  transitionTo('screen-chars', 'screen-game');
+  setTimeout(initGame, 950);
+}
+
+// ════════════════════════════════════════
+// THREE.JS GAME
+// ════════════════════════════════════════
+let renderer, scene, camera, player;
+let targetPos = new THREE.Vector3();
+let cameraTargetPos = new THREE.Vector3();
+let cameraTargetLook = new THREE.Vector3();
+let keys = {};
+let rooms3D = [];
+let currentFloorMeshes = [];
+let animatingCamera = false;
+let playerMesh;
+let clock;
+let currentRoomData = null;
+
+const ROOM_SIZE = 6;
+const WALL_HEIGHT = 3.5;
+const CORRIDOR_W = 3;
+
+function initGame() {
+  const canvas = document.getElementById('three-canvas');
+  renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x0a1825);
+  scene.fog = new THREE.Fog(0x0a1825, 20, 60);
+
+  clock = new THREE.Clock();
+
+  setupCamera();
+  setupLights();
+  buildFloor(state.currentFloor);
+  setupHUD();
+  setupControls();
+  buildGlitchCanvas();
+
+  window.addEventListener('resize', onResize);
+  animate();
+  showFloorBanner(state.currentFloor);
+  setTimeout(() => { document.getElementById('controls-hint').style.opacity = '0'; }, 6000);
+}
+
+function setupCamera() {
+  camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 200);
+  applyCameraMode('fp', true);
+}
+
+function setupLights() {
+  const ambient = new THREE.AmbientLight(0x1a3a55, 0.4);
+  scene.add(ambient);
+
+  const dirLight = new THREE.DirectionalLight(0x3a7abf, 0.3);
+  dirLight.position.set(10, 20, 10);
+  dirLight.castShadow = true;
+  scene.add(dirLight);
+}
+
+function buildFloor(floorIdx) {
+  // Clear existing
+  currentFloorMeshes.forEach(m => scene.remove(m));
+  currentFloorMeshes = [];
+  rooms3D = [];
+
+  const floor = DATA.building.floors[floorIdx];
+  const layout = floor.layout;
+  const rows = layout.length;
+  const cols = layout[0].length;
+
+  // Flatten rooms into grid positions
+  let roomIndex = 0;
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      if (layout[r][c] === 1) {
+        const room = floor.rooms[roomIndex] || { id: `${floorIdx+1}-${roomIndex+1}`, type: 'empty' };
+        buildRoom(room, c, r, floorIdx);
+        roomIndex++;
+      }
+    }
+  }
+
+  // Build connecting corridors between adjacent rooms
+  buildCorridors(layout, floorIdx);
+
+  // Place player at first room
+  if (rooms3D.length > 0) {
+    const firstRoom = rooms3D[0];
+    player = { x: firstRoom.wx, z: firstRoom.wz };
+    targetPos.set(player.x, 0, player.z);
+    updateCameraInstant();
+    state.currentRoom = firstRoom.data;
+    state.visitedRooms.add(firstRoom.data.id);
+  }
+
+  updateFloorMap();
+  updateBuildingMap();
+}
+
+function buildRoom(roomData, col, row, floorIdx) {
+  const wx = col * (ROOM_SIZE + CORRIDOR_W);
+  const wz = row * (ROOM_SIZE + CORRIDOR_W);
+  const isProject = roomData.type === 'project';
+  const isEmpty = roomData.type === 'empty';
+
+  const wallColor = isProject ? 0x0e2236 : 0x0a1620;
+  const floorColor = isProject ? 0x091825 : 0x070f18;
+  const accentColor = isProject ? 0x1a4a6a : 0x0d1f2d;
+
+  // Floor
+  const floorGeo = new THREE.PlaneGeometry(ROOM_SIZE, ROOM_SIZE);
+  const floorMat = new THREE.MeshLambertMaterial({ color: floorColor });
+  const floorMesh = new THREE.Mesh(floorGeo, floorMat);
+  floorMesh.rotation.x = -Math.PI / 2;
+  floorMesh.position.set(wx, 0, wz);
+  floorMesh.receiveShadow = true;
+  scene.add(floorMesh);
+  currentFloorMeshes.push(floorMesh);
+
+  // Ceiling
+  const ceilGeo = new THREE.PlaneGeometry(ROOM_SIZE, ROOM_SIZE);
+  const ceilMat = new THREE.MeshLambertMaterial({ color: 0x050e18 });
+  const ceilMesh = new THREE.Mesh(ceilGeo, ceilMat);
+  ceilMesh.rotation.x = Math.PI / 2;
+  ceilMesh.position.set(wx, WALL_HEIGHT, wz);
+  scene.add(ceilMesh);
+  currentFloorMeshes.push(ceilMesh);
+
+  // Walls
+  const wallMat = new THREE.MeshLambertMaterial({ color: wallColor });
+  const wallPositions = [
+    { x: wx, z: wz - ROOM_SIZE/2, ry: 0 },
+    { x: wx, z: wz + ROOM_SIZE/2, ry: Math.PI },
+    { x: wx - ROOM_SIZE/2, z: wz, ry: Math.PI/2 },
+    { x: wx + ROOM_SIZE/2, z: wz, ry: -Math.PI/2 },
+  ];
+  wallPositions.forEach(wp => {
+    const wg = new THREE.PlaneGeometry(ROOM_SIZE, WALL_HEIGHT);
+    const wm = new THREE.Mesh(wg, wallMat.clone());
+    wm.position.set(wp.x, WALL_HEIGHT/2, wp.z);
+    wm.rotation.y = wp.ry;
+    scene.add(wm);
+    currentFloorMeshes.push(wm);
+  });
+
+  // Ceiling light
+  const lightGeo = new THREE.PlaneGeometry(1.2, 0.3);
+  const lightColor = isProject ? 0x5aaad4 : (isEmpty ? 0x3a1a1a : 0x3a5a6a);
+  const lightMat = new THREE.MeshBasicMaterial({ color: lightColor });
+  const lightMesh = new THREE.Mesh(lightGeo, lightMat);
+  lightMesh.rotation.x = Math.PI / 2;
+  lightMesh.position.set(wx, WALL_HEIGHT - 0.02, wz);
+  scene.add(lightMesh);
+  currentFloorMeshes.push(lightMesh);
+
+  // Point light in room
+  const ptLight = new THREE.PointLight(isProject ? 0x3a7abf : 0x2a1a1a, isProject ? 0.8 : 0.2, 8);
+  ptLight.position.set(wx, WALL_HEIGHT - 0.5, wz);
+  scene.add(ptLight);
+  currentFloorMeshes.push(ptLight);
+
+  // Room number plaque on wall
+  if (isProject) {
+    const plaqueMat = new THREE.MeshLambertMaterial({ color: accentColor });
+    const plaqueGeo = new THREE.PlaneGeometry(0.8, 0.2);
+    const plaque = new THREE.Mesh(plaqueGeo, plaqueMat);
+    plaque.position.set(wx, 0.8, wz - ROOM_SIZE/2 + 0.02);
+    scene.add(plaque);
+    currentFloorMeshes.push(plaque);
+  }
+
+  // Glitch texture cube for empty rooms (small animated cube)
+  if (isEmpty) {
+    const cubeGeo = new THREE.BoxGeometry(0.6, 0.6, 0.6);
+    const cubeMat = new THREE.MeshBasicMaterial({ color: 0xe8334a, wireframe: true });
+    const cube = new THREE.Mesh(cubeGeo, cubeMat);
+    cube.position.set(wx, 0.5, wz);
+    cube.userData.isGlitch = true;
+    scene.add(cube);
+    currentFloorMeshes.push(cube);
+  }
+
+  // Store room info
+  rooms3D.push({ data: roomData, wx, wz, col, row });
+}
+
+function buildCorridors(layout, floorIdx) {
+  const rows = layout.length, cols = layout[0].length;
+  const wallMat = new THREE.MeshLambertMaterial({ color: 0x091520 });
+  const floorMat = new THREE.MeshLambertMaterial({ color: 0x070f18 });
+
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      if (layout[r][c] !== 1) continue;
+      const wx = c * (ROOM_SIZE + CORRIDOR_W);
+      const wz = r * (ROOM_SIZE + CORRIDOR_W);
+
+      // East corridor
+      if (c + 1 < cols && layout[r][c+1] === 1) {
+        const cFloor = new THREE.PlaneGeometry(CORRIDOR_W, ROOM_SIZE * 0.5);
+        const cf = new THREE.Mesh(cFloor, floorMat);
+        cf.rotation.x = -Math.PI / 2;
+        cf.position.set(wx + ROOM_SIZE/2 + CORRIDOR_W/2, 0, wz);
+        scene.add(cf); currentFloorMeshes.push(cf);
+
+        // Corridor ceiling
+        const cc = new THREE.Mesh(new THREE.PlaneGeometry(CORRIDOR_W, ROOM_SIZE * 0.5), new THREE.MeshLambertMaterial({ color: 0x050e18 }));
+        cc.rotation.x = Math.PI / 2;
+        cc.position.set(wx + ROOM_SIZE/2 + CORRIDOR_W/2, WALL_HEIGHT, wz);
+        scene.add(cc); currentFloorMeshes.push(cc);
+
+        // Corridor walls (north/south)
+        [-1, 1].forEach(side => {
+          const cw = new THREE.Mesh(new THREE.PlaneGeometry(CORRIDOR_W, WALL_HEIGHT), wallMat.clone());
+          cw.rotation.y = side > 0 ? 0 : Math.PI;
+          cw.position.set(wx + ROOM_SIZE/2 + CORRIDOR_W/2, WALL_HEIGHT/2, wz + side * ROOM_SIZE * 0.25);
+          scene.add(cw); currentFloorMeshes.push(cw);
+        });
+
+        // Door frame strip
+        const doorMat = new THREE.MeshBasicMaterial({ color: 0x1a3a55 });
+        const doorGeo = new THREE.BoxGeometry(0.1, WALL_HEIGHT, 0.3);
+        [-1, 1].forEach(side => {
+          const door = new THREE.Mesh(doorGeo, doorMat);
+          door.position.set(wx + ROOM_SIZE/2 + CORRIDOR_W/2, WALL_HEIGHT/2, wz + side * 0.6);
+          scene.add(door); currentFloorMeshes.push(door);
+        });
+      }
+
+      // South corridor
+      if (r + 1 < rows && layout[r+1][c] === 1) {
+        const cFloor = new THREE.PlaneGeometry(ROOM_SIZE * 0.5, CORRIDOR_W);
+        const cf = new THREE.Mesh(cFloor, floorMat);
+        cf.rotation.x = -Math.PI / 2;
+        cf.position.set(wx, 0, wz + ROOM_SIZE/2 + CORRIDOR_W/2);
+        scene.add(cf); currentFloorMeshes.push(cf);
+
+        const cc = new THREE.Mesh(new THREE.PlaneGeometry(ROOM_SIZE * 0.5, CORRIDOR_W), new THREE.MeshLambertMaterial({ color: 0x050e18 }));
+        cc.rotation.x = Math.PI / 2;
+        cc.position.set(wx, WALL_HEIGHT, wz + ROOM_SIZE/2 + CORRIDOR_W/2);
+        scene.add(cc); currentFloorMeshes.push(cc);
+
+        [-1, 1].forEach(side => {
+          const cw = new THREE.Mesh(new THREE.PlaneGeometry(WALL_HEIGHT, CORRIDOR_W), wallMat.clone());
+          cw.rotation.y = side > 0 ? Math.PI / 2 : -Math.PI / 2;
+          cw.position.set(wx + side * ROOM_SIZE * 0.25, WALL_HEIGHT/2, wz + ROOM_SIZE/2 + CORRIDOR_W/2);
+          scene.add(cw); currentFloorMeshes.push(cw);
+        });
+      }
+    }
+  }
+}
+
+function setupControls() {
+  document.addEventListener('keydown', e => {
+    keys[e.code] = true;
+    if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','KeyW','KeyA','KeyS','KeyD'].includes(e.code)) e.preventDefault();
+  });
+  document.addEventListener('keyup', e => { keys[e.code] = false; });
+
+  document.getElementById('three-canvas').addEventListener('click', e => {
+    if (state.roomCardOpen) return;
+    // Raycast to click-to-move
+    const rect = renderer.domElement.getBoundingClientRect();
+    const mouse = new THREE.Vector2(
+      ((e.clientX - rect.left) / rect.width) * 2 - 1,
+      -((e.clientY - rect.top) / rect.height) * 2 + 1
+    );
+    const raycaster = new THREE.Raycaster();
+    raycaster.setFromCamera(mouse, camera);
+    const floorPlane = new THREE.Plane(new THREE.Vector3(0,1,0), 0);
+    const target = new THREE.Vector3();
+    raycaster.ray.intersectPlane(floorPlane, target);
+    if (target) {
+      targetPos.set(target.x, 0, target.z);
+    }
+  });
+}
+
+function getPlayerSpeed() { return 0.08; }
+
+function updateMovement() {
+  if (state.roomCardOpen) return;
+  const speed = 0.1;
+  let moved = false;
+  const dx = (keys['KeyD'] || keys['ArrowRight'] ? 1 : 0) - (keys['KeyA'] || keys['ArrowLeft'] ? 1 : 0);
+  const dz = (keys['KeyS'] || keys['ArrowDown'] ? 1 : 0) - (keys['KeyW'] || keys['ArrowUp'] ? 1 : 0);
+  if (dx !== 0 || dz !== 0) {
+    targetPos.x += dx * speed;
+    targetPos.z += dz * speed;
+    moved = true;
+  }
+
+  // Lerp toward target
+  player.x += (targetPos.x - player.x) * 0.12;
+  player.z += (targetPos.z - player.z) * 0.12;
+
+  if (playerMesh) { playerMesh.position.x = player.x; playerMesh.position.z = player.z; }
+
+  checkRoomProximity();
+}
+
+function checkRoomProximity() {
+  let closest = null, closestDist = Infinity;
+  rooms3D.forEach(r => {
+    const d = Math.hypot(player.x - r.wx, player.z - r.wz);
+    if (d < closestDist) { closestDist = d; closest = r; }
+  });
+  if (closest && closestDist < 2.5) {
+    if (state.currentRoom?.id !== closest.data.id) {
+      state.currentRoom = closest.data;
+      state.visitedRooms.add(closest.data.id);
+      updateFloorMap();
+      onEnterRoom(closest);
+    }
+  }
+}
+
+function onEnterRoom(roomObj) {
+  const room = roomObj.data;
+  flashSensor();
+  if (room.type === 'project') {
+    openRoomCard(room);
+  } else if (room.type === 'empty') {
+    showGlitch();
+  }
+}
+
+function flashSensor() {
+  const s = document.getElementById('sensor-flash');
+  s.style.opacity = '1';
+  setTimeout(() => s.style.opacity = '0', 400);
+}
+
+function openRoomCard(room) {
+  state.roomCardOpen = true;
+  document.getElementById('rc-room-id').textContent = `Room ${room.id} · Project File`;
+  document.getElementById('rc-title').textContent = room.title;
+  document.getElementById('rc-subtitle').textContent = room.subtitle;
+  document.getElementById('rc-desc').textContent = room.description;
+
+  const tagsEl = document.getElementById('rc-tags');
+  tagsEl.innerHTML = room.tags.map(t => `<span class="rc-tag">${t}</span>`).join('');
+
+  const metricsEl = document.getElementById('rc-metrics');
+  metricsEl.innerHTML = room.metrics.map(m => `<div class="rc-metric"><span class="rc-metric-label">${m.label}</span><span class="rc-metric-val">${m.value}</span></div>`).join('');
+
+  const imgEl = document.getElementById('rc-image');
+  if (room.image) {
+    imgEl.innerHTML = `<img class="rc-img-real" src="${room.image}" alt="${room.title}">`;
+  } else {
+    const cols = 9, rows = 5;
+    const neutrals = ['#0d2235','#0e2840','#0c1e30','#112030','#0a1a28','#0f2438'];
+    imgEl.innerHTML = '';
+    const grid = document.createElement('div');
+    grid.style.cssText = `display:grid;grid-template-columns:repeat(${cols},1fr);grid-template-rows:repeat(${rows},1fr);gap:2px;padding:6px;width:100%;height:100%;`;
+    for (let i = 0; i < cols*rows; i++) {
+      const d = document.createElement('div');
+      d.style.background = neutrals[Math.floor(Math.random()*neutrals.length)];
+      d.style.borderRadius = '1px';
+      grid.appendChild(d);
+    }
+    imgEl.appendChild(grid);
+  }
+
+  currentRoomData = room;
+  document.getElementById('room-card').classList.add('open');
+}
+
+function closeRoomCard() {
+  state.roomCardOpen = false;
+  document.getElementById('room-card').classList.remove('open');
+}
+
+function openProjectLink() { if (currentRoomData?.link && currentRoomData.link !== '#') window.open(currentRoomData.link, '_blank'); }
+function openGithubLink() { if (currentRoomData?.github && currentRoomData.github !== '#') window.open(currentRoomData.github, '_blank'); }
+
+let glitchRaf;
+function showGlitch() {
+  const overlay = document.getElementById('glitch-overlay');
+  overlay.style.opacity = '0.18';
+  renderGlitch();
+  setTimeout(() => { overlay.style.opacity = '0'; cancelAnimationFrame(glitchRaf); }, 1200);
+}
+
+function buildGlitchCanvas() {
+  const canvas = document.getElementById('glitch-canvas');
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+}
+
+function renderGlitch() {
+  const canvas = document.getElementById('glitch-canvas');
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  const cols = Math.ceil(W / 12), rows = Math.ceil(H / 12);
+  const colors = ['#e8334a','#f5a623','#4a9ae8','#e833e8','#33e8a0','#f5e623','#e87833','#33a0e8','#e84a33','#a033e8'];
+  ctx.clearRect(0, 0, W, H);
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      if (Math.random() < 0.6) {
+        ctx.fillStyle = colors[Math.floor(Math.random()*colors.length)];
+        ctx.globalAlpha = 0.4 + Math.random() * 0.6;
+        ctx.fillRect(c*12, r*12, 12, 12);
+      }
+    }
+  }
+  ctx.globalAlpha = 1;
+  glitchRaf = requestAnimationFrame(renderGlitch);
+}
+
+// ════════════════════════════════════════
+// CAMERA MODES
+// ════════════════════════════════════════
+function setCamera(mode) {
+  document.querySelectorAll('.cam-item').forEach(el => el.classList.remove('active'));
+  document.getElementById('cam-' + mode).classList.add('active');
+  state.cameraMode = mode;
+  applyCameraMode(mode, false);
+}
+
+function applyCameraMode(mode, instant) {
+  const targets = {
+    fp: { offset: new THREE.Vector3(0, 1.6, 0), lookOffset: new THREE.Vector3(0, 1.6, -5) },
+    tp: { offset: new THREE.Vector3(0, 4, 5), lookOffset: new THREE.Vector3(0, 0, 0) },
+    iso: { offset: new THREE.Vector3(8, 10, 8), lookOffset: new THREE.Vector3(0, 0, 0) },
+  };
+  const t = targets[mode];
+  if (!player) return;
+  const px = player.x || 0, pz = player.z || 0;
+  cameraTargetPos.set(px + t.offset.x, t.offset.y, pz + t.offset.z);
+  cameraTargetLook.set(px + t.lookOffset.x, t.lookOffset.y, pz + t.lookOffset.z);
+  if (instant) { camera.position.copy(cameraTargetPos); camera.lookAt(cameraTargetLook); }
+  else animatingCamera = true;
+}
+
+function updateCameraInstant() {
+  const mode = state.cameraMode;
+  const offsets = {
+    fp: [0, 1.6, 0], tp: [0, 4, 5], iso: [8, 10, 8]
+  };
+  const looks = {
+    fp: [0, 1.6, -5], tp: [0, 0, 0], iso: [0, 0, 0]
+  };
+  const off = offsets[mode], lk = looks[mode];
+  camera.position.set(player.x + off[0], off[1], player.z + off[2]);
+  camera.lookAt(player.x + lk[0], lk[1], player.z + lk[2]);
+}
+
+function updateCamera() {
+  const mode = state.cameraMode;
+  const offsets = { fp: [0, 1.6, 0], tp: [0, 4, 5], iso: [8, 10, 8] };
+  const looks = { fp: [0, 1.6, -5], tp: [0, 0, 0], iso: [0, 0, 0] };
+  const off = offsets[mode], lk = looks[mode];
+  cameraTargetPos.set(player.x + off[0], off[1], player.z + off[2]);
+  cameraTargetLook.set(player.x + lk[0], lk[1], player.z + lk[2]);
+  camera.position.lerp(cameraTargetPos, animatingCamera ? 0.05 : 0.1);
+  const currentLook = new THREE.Vector3();
+  camera.getWorldDirection(currentLook);
+  const desiredDir = cameraTargetLook.clone().sub(camera.position).normalize();
+  const blended = currentLook.lerp(desiredDir, animatingCamera ? 0.04 : 0.08);
+  camera.lookAt(camera.position.clone().add(blended));
+  if (camera.position.distanceTo(cameraTargetPos) < 0.05) animatingCamera = false;
+}
+
+// ════════════════════════════════════════
+// HUD
+// ════════════════════════════════════════
+function setupHUD() {
+  const ch = state.char;
+  document.getElementById('hud-avatar').textContent = ch.initials;
+  document.getElementById('hud-avatar').style.background = ch.bg;
+  document.getElementById('hud-avatar').style.color = ch.accent;
+  document.getElementById('hud-charname').textContent = ch.name;
+  document.getElementById('hud-tier').textContent = `Clearance · Tier ${ch.tier}`;
+  updateFloorMap();
+  updateBuildingMap();
+}
+
+function toggleHud(id) {
+  const panel = document.getElementById(id);
+  panel.classList.toggle('collapsed');
+  const toggle = panel.querySelector('.hud-toggle');
+  toggle.textContent = panel.classList.contains('collapsed') ? '+' : '−';
+}
+
+function updateFloorMap() {
+  const floor = DATA.building.floors[state.currentFloor];
+  document.getElementById('hud-floor-name').textContent = `Floor ${floor.id} — ${floor.name}`;
+  const layout = floor.layout;
+  const cols = layout[0].length;
+  const mapEl = document.getElementById('floor-grid-map');
+  mapEl.style.gridTemplateColumns = `repeat(${cols}, 16px)`;
+  mapEl.innerHTML = '';
+
+  let roomIdx = 0;
+  layout.forEach(row => {
+    row.forEach(cell => {
+      const div = document.createElement('div');
+      div.className = 'fmap-cell';
+      if (cell === 0) {
+        div.classList.add('room-blank');
+      } else {
+        const room = floor.rooms[roomIdx];
+        if (room) {
+          div.classList.add(room.type === 'project' ? 'room-project-cell' : 'room-empty-cell');
+          if (state.visitedRooms.has(room.id)) div.classList.add('room-visited');
+          if (state.currentRoom?.id === room.id) div.classList.add('room-current');
+          div.title = room.type === 'project' ? room.title : 'Empty';
+          div.addEventListener('click', () => travelToRoom(room));
+        }
+        roomIdx++;
+      }
+      mapEl.appendChild(div);
+    });
+  });
+}
+
+function updateBuildingMap() {
+  const container = document.getElementById('building-floors');
+  container.innerHTML = '';
+  const accessible = state.char.floors;
+  [...DATA.building.floors].reverse().forEach(floor => {
+    const isAccessible = accessible.includes(floor.id);
+    const isCurrent = floor.id === DATA.building.floors[state.currentFloor].id;
+    const row = document.createElement('div');
+    row.className = 'bfloor-row';
+    row.innerHTML = `<span class="bfloor-num">${floor.id}</span>
+      <div class="bfloor-bar ${isCurrent ? 'current-floor' : ''} ${!isAccessible ? 'locked-floor' : ''}">
+        <span class="bfloor-name">${floor.name}</span>
+        ${isCurrent ? '<span class="bfloor-you">← you</span>' : ''}
+      </div>`;
+    if (isAccessible && !isCurrent) {
+      row.querySelector('.bfloor-bar').addEventListener('click', () => travelToFloor(floor.id - 1));
+    } else if (!isAccessible) {
+      row.querySelector('.bfloor-bar').addEventListener('click', showAccessDenied);
+    }
+    container.appendChild(row);
+  });
+}
+
+function travelToFloor(floorIdx) {
+  closeRoomCard();
+  state.currentFloor = floorIdx;
+  state.currentRoom = null;
+  scene.children.forEach(child => {
+    if (!child.isLight && child.type !== 'AmbientLight' && child.type !== 'DirectionalLight') {
+    }
+  });
+  buildFloor(floorIdx);
+  updateBuildingMap();
+  showFloorBanner(floorIdx);
+}
+
+function travelToRoom(room) {
+  const r3d = rooms3D.find(r => r.data.id === room.id);
+  if (!r3d) return;
+  targetPos.set(r3d.wx, 0, r3d.wz);
+}
+
+function showFloorBanner(floorIdx) {
+  const floor = DATA.building.floors[floorIdx];
+  const banner = document.getElementById('floor-banner');
+  document.getElementById('banner-code').textContent = floor.code;
+  document.getElementById('banner-name').textContent = floor.name.toUpperCase();
+  banner.style.opacity = '1';
+  setTimeout(() => banner.style.opacity = '0', 2200);
+}
+
+function showAccessDenied() {
+  const el = document.getElementById('access-denied');
+  el.style.opacity = '1';
+  setTimeout(() => el.style.opacity = '0', 300);
+}
+
+// ════════════════════════════════════════
+// ANIMATE LOOP
+// ════════════════════════════════════════
+function animate() {
+  requestAnimationFrame(animate);
+  if (!player) return;
+  const delta = clock.getDelta();
+  updateMovement();
+  updateCamera();
+
+  // Animate glitch cubes
+  currentFloorMeshes.forEach(m => {
+    if (m.userData?.isGlitch) {
+      m.rotation.x += delta * 1.2;
+      m.rotation.y += delta * 0.8;
+      const colors = [0xe8334a, 0xf5a623, 0x4a9ae8, 0xe833e8, 0x33e8a0];
+      if (Math.random() < 0.05) m.material.color.setHex(colors[Math.floor(Math.random()*colors.length)]);
+    }
+  });
+
+  renderer.render(scene, camera);
+}
+
+function onResize() {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  buildGlitchCanvas();
+}
+</script>
+</body>
+</html>
