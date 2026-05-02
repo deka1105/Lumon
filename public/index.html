@@ -131,6 +131,11 @@ body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradie
 .vtiso{background:#0e2236;border:.5px solid var(--nbm);color:var(--cdim);}
 .vtfp{background:var(--navy2);border:.5px solid var(--dimmer);color:var(--dimmer);}
 .vtb.vta{border-color:var(--blue);color:var(--cream);}
+#iso-controls{position:fixed;bottom:52px;right:14px;z-index:201;display:flex;flex-direction:column;gap:4px;align-items:center;}
+.iso-cb{width:30px;height:30px;background:rgba(8,18,28,.92);border:.5px solid var(--dimmer);border-radius:4px;color:var(--cdim);font-size:15px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .18s;line-height:1;padding:0;}
+.iso-cb:hover{background:var(--navy3);border-color:var(--nb);color:var(--cream);}
+.iso-cb:active{transform:scale(.92);}
+.iso-sep{width:20px;height:.5px;background:var(--dimmer);margin:2px 0;}
 #rcard{position:fixed;top:0;right:0;width:360px;height:100%;background:rgba(7,13,22,.97);border-left:.5px solid var(--nb);z-index:300;display:flex;flex-direction:column;transform:translateX(100%);transition:transform .5s cubic-bezier(.22,1,.36,1);}
 #rcard.open{transform:translateX(0);}
 .rchd{padding:18px 16px 14px;border-bottom:.5px solid var(--dimmer);}
@@ -227,6 +232,14 @@ body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradie
     <button class="vtb vtiso vta" id="btn-iso" onclick="setView('iso')">Isometric</button>
     <button class="vtb vtfp" id="btn-fp" onclick="setView('fp')">First Person</button>
   </div>
+  <div id="iso-controls">
+    <button class="iso-cb" onclick="isoZoom(1.25)" title="Zoom In">＋</button>
+    <button class="iso-cb" onclick="isoZoom(0.8)" title="Zoom Out">－</button>
+    <button class="iso-cb" onclick="isoReset()" title="Reset View">⊙</button>
+    <div class="iso-sep"></div>
+    <button class="iso-cb" onclick="isoRotate(-1)" title="Rotate Left">↺</button>
+    <button class="iso-cb" onclick="isoRotate(1)" title="Rotate Right">↻</button>
+  </div>
   <div class="hud hudp" id="hud-char">
     <div class="hudl" onclick="toggleHud('hud-char')">Active Employee <span class="hudt">−</span></div>
     <div class="hudb">
@@ -281,7 +294,7 @@ const CHARS=[
 const Tcls={1:'t1',2:'t2',4:'t4',5:'t5'};
 
 // ═══════ STATE ═══════
-const S={char:null,floors:[],cf:{},fi:0,curRoom:null,visited:new Set(),view:'iso',cardOpen:false,crData:null,px:{x:0,y:0},sm:{x:0,y:0},wt:0,keys:{},zoom:1,rotAngle:0,pan:{x:0,y:0},drag:{active:false,startX:0,startY:0,startPanX:0,startPanY:0,dist:0}};
+const S={char:null,floors:[],cf:{},fi:0,curRoom:null,visited:new Set(),view:'iso',cardOpen:false,crData:null,px:{x:0,y:0},sm:{x:0,y:0},wt:0,keys:{},zoom:1,rotStep:0,pan:{x:0,y:0},drag:{active:false,startX:0,startY:0,startPanX:0,startPanY:0,dist:0}};
 const $=id=>document.getElementById(id);
 function go(a,b){$(a).classList.add('off');setTimeout(()=>{$(a).classList.add('gone');$(b).classList.remove('gone');requestAnimationFrame(()=>$(b).classList.remove('off'));},900);}
 
@@ -400,13 +413,31 @@ const P={
 };
 let iCtx,iW,iH,iOX,iOY,iRaf;
 
-// Raw iso coords (no zoom/pan — those are applied via ctx transform in renderIso)
-function g2s(gx,gy){return{x:(gx-gy)*(TW/2), y:(gx+gy)*(TH/2)};}
+// Iso coords with 4-step rotation
+// rotStep 0=NE(default), 1=SE, 2=SW, 3=NW
+function g2s(gx,gy){
+  let ax=gx,ay=gy;
+  // rotate grid axes
+  switch(S.rotStep%4){
+    case 1:{const t=ax;ax=ay;ay=-t;}break;   // 90° CW
+    case 2:{ax=-ax;ay=-ay;}break;              // 180°
+    case 3:{const t=ax;ax=-ay;ay=t;}break;    // 270° CW
+  }
+  return{x:(ax-ay)*(TW/2), y:(ax+ay)*(TH/2)};
+}
 function s2g(sx,sy){
-  // invert canvas transform: translate(iOX+pan.x, iOY+pan.y) scale(zoom)
   const rx=(sx-(iOX+S.pan.x))/S.zoom;
   const ry=(sy-(iOY+S.pan.y))/S.zoom;
-  return{x:Math.floor((rx/(TW/2)+ry/(TH/2))/2),y:Math.floor((ry/(TH/2)-rx/(TW/2))/2)};
+  // inverse of default (rotStep=0) iso transform
+  let gx=Math.floor((rx/(TW/2)+ry/(TH/2))/2);
+  let gy=Math.floor((ry/(TH/2)-rx/(TW/2))/2);
+  // un-rotate grid axes
+  switch(S.rotStep%4){
+    case 1:{const t=gx;gx=-gy;gy=t;}break;
+    case 2:{gx=-gx;gy=-gy;}break;
+    case 3:{const t=gx;gx=gy;gy=-t;}break;
+  }
+  return{x:gx,y:gy};
 }
 function buildGrid(floor){
   const rooms=floor.rooms||[];let mR=0,mC=0;
@@ -716,11 +747,24 @@ function renderFP(){
 function setView(mode){
   S.view=mode;
   const ic=$('iso-canvas'),fc=$('fp-canvas'),bi=$('btn-iso'),bf=$('btn-fp'),ci=$('ci-iso'),cf=$('ci-fp');
-  if(mode==='iso'){ic.style.display='block';fc.style.display='none';bi.classList.add('vta');bf.classList.remove('vta');ci.classList.add('act');cf.classList.remove('act');}
-  else{ic.style.display='none';fc.style.display='block';bi.classList.remove('vta');bf.classList.add('vta');ci.classList.remove('act');cf.classList.add('act');
+  if(mode==='iso'){ic.style.display='block';fc.style.display='none';bi.classList.add('vta');bf.classList.remove('vta');ci.classList.add('act');cf.classList.remove('act');$('iso-controls').style.display='flex';}
+  else{ic.style.display='none';fc.style.display='block';bi.classList.remove('vta');bf.classList.add('vta');ci.classList.remove('act');cf.classList.add('act');$('iso-controls').style.display='none';
     if(!r3)initFP();
     fc.addEventListener('mousemove',e=>{if(document.pointerLockElement===fc)cam3.rotation.y-=e.movementX*.002;});
     fc.onclick=()=>fc.requestPointerLock();}
+}
+
+// ═══════ ISO CONTROLS ═══════
+function isoZoom(factor){
+  S.zoom=Math.max(0.3,Math.min(3.2,S.zoom*factor));
+}
+function isoReset(){
+  S.zoom=1;S.pan={x:0,y:0};S.rotStep=0;
+}
+function isoRotate(dir){
+  S.rotStep=((S.rotStep+dir)%4+4)%4;
+  // Reset pan on rotate so map stays centered
+  S.pan={x:0,y:0};
 }
 
 // ═══════ VHS ═══════
@@ -955,7 +999,16 @@ function closeCard(){S.cardOpen=false;$('rcard').classList.remove('open');}
 
 // ═══════ INPUT ═══════
 function setupInput(){
-  addEventListener('keydown',e=>{S.keys[e.code]=true;fpK[e.code]=true;if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code))e.preventDefault();});
+  addEventListener('keydown',e=>{
+    S.keys[e.code]=true;fpK[e.code]=true;
+    if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code))e.preventDefault();
+    if(S.view==='iso'){
+      if(e.code==='KeyQ')isoRotate(-1);
+      if(e.code==='KeyE')isoRotate(1);
+      if(e.code==='Equal'||e.code==='NumpadAdd')isoZoom(1.2);
+      if(e.code==='Minus'||e.code==='NumpadSubtract')isoZoom(0.83);
+    }
+  });
   addEventListener('keyup',e=>{S.keys[e.code]=false;fpK[e.code]=false;});
   // ISO movement — isometric axis mapping
   setInterval(()=>{
@@ -1000,19 +1053,13 @@ function setupInput(){
     const{grid,rows,cols}=buildGrid(fl);
     if(y>=0&&y<rows&&x>=0&&x<cols&&grid[y]?.[x]!==undefined){S.px={x,y};const room=grid[y][x];if(room)enterRoom(room);updFMap();}
   });
-  // Wheel: zoom centered on mouse position
+  // Scroll wheel — zoom in/out (smooth)
   ic.addEventListener('wheel',e=>{
     e.preventDefault();
-    const rect=ic.getBoundingClientRect();
-    const mx=e.clientX-rect.left, my=e.clientY-rect.top;
-    const oldZ=S.zoom;
-    S.zoom=Math.max(0.35,Math.min(3.0,S.zoom*(1-e.deltaY*0.001)));
-    // Adjust pan so zoom is centered on mouse
-    S.pan.x=mx-(mx-S.pan.x-iOX)*(S.zoom/oldZ)-iOX+iOX;
-    S.pan.y=my-(my-S.pan.y-iOY)*(S.zoom/oldZ)-iOY+iOY;
+    isoZoom(e.deltaY<0?1.12:0.89);
   },{passive:false});
-  // Double-click to reset view
-  ic.addEventListener('dblclick',()=>{S.zoom=1;S.pan={x:0,y:0};});
+  // Double-click to reset
+  ic.addEventListener('dblclick',()=>isoReset());
 }
 
 // ═══════ FETCH ═══════
