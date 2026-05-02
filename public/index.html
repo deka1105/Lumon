@@ -686,8 +686,9 @@ function drawPlayer(ctx, px, py){
   if(!ch) return;
   const walk=Math.sin(S.playerWalk)*3;
   const bob=Math.abs(Math.sin(S.playerWalk))*2;
-  const {x:sx,y:sy}=isoToScreen(px,py);
-  const ax=sx+ISO.TW*ISO.SCALE*0.5, ay=sy-ISO.TH*ISO.SCALE*0.5-bob;
+  // px,py are fractional grid coords — add 0.5 to center on tile
+  const {x:sx,y:sy}=isoToScreen(px+0.5, py+0.5);
+  const ax=sx, ay=sy-ISO.TH*ISO.SCALE*0.5-bob;
 
   // shadow
   ctx.fillStyle='rgba(0,0,0,0.25)'; ctx.beginPath(); ctx.ellipse(ax,sy+ISO.TH*ISO.SCALE*0.1,10,4,0,0,Math.PI*2); ctx.fill();
@@ -715,39 +716,38 @@ function drawPlayer(ctx, px, py){
 
 function renderIso(){
   if(!S.floors.length) return;
-  const canvas=$('iso-canvas');
   const ctx=isoCtx; if(!ctx) return;
   ctx.clearRect(0,0,isoW,isoH);
-
-  // dark bg
   ctx.fillStyle='#0f1810'; ctx.fillRect(0,0,isoW,isoH);
 
   const floor=S.floors[S.currentFloorIdx];
-  if(!floor) return;
+  if(!floor){ isoRaf=requestAnimationFrame(renderIso); return; }
   const {grid,rows,cols}=buildRoomGrid(floor);
   const tw=ISO.TW*ISO.SCALE, th=ISO.TH*ISO.SCALE, wh=ISO.WALL_H*ISO.SCALE*0.5;
 
-  // Draw from back to front (painter's algorithm)
+  // Smooth player lerp toward target grid position
+  const tpx=S.player.x*tw, tpy=S.player.y*th;
+  S.playerPx.x+=(tpx-S.playerPx.x)*0.18;
+  S.playerPx.y+=(tpy-S.playerPx.y)*0.18;
+  const moving=Math.abs(tpx-S.playerPx.x)>0.5||Math.abs(tpy-S.playerPx.y)>0.5;
+  if(moving) S.playerWalk+=0.12;
+
+  // Draw all rooms back-to-front
   for(let gy=0;gy<rows;gy++){
     for(let gx=0;gx<cols;gx++){
       const room=grid[gy]?grid[gy][gx]:null;
-      drawRoom(ctx,room,gx,gy,tw,th,wh);
-
-      // draw connectors
-      if(room && grid[gy] && grid[gy][gx+1]){
-        drawConnector(ctx,gx,gy,gx+1,gy,room.connection_type||'corridor',tw,th);
-      }
-      if(room && grid[gy+1] && grid[gy+1][gx]){
-        drawConnector(ctx,gx,gy,gx,gy+1,room.connection_type||'corridor',tw,th);
-      }
+      if(room!==undefined) drawRoom(ctx,room,gx,gy,tw,th,wh);
+      // connectors
+      if(room && grid[gy]?.[gx+1]) drawConnector(ctx,gx,gy,gx+1,gy,room.connection_type||'corridor',tw,th);
+      if(room && grid[gy+1]?.[gx]) drawConnector(ctx,gx,gy,gx,gy+1,room.connection_type||'corridor',tw,th);
     }
   }
 
-  // Draw player
-  drawPlayer(ctx, S.playerPx.x/tw, S.playerPx.y/(th/2));
+  // Draw player at smooth pixel position (convert back to grid float)
+  drawPlayer(ctx, S.playerPx.x/tw, S.playerPx.y/th);
 
   glitchT++;
-  if(S.viewMode==='iso') isoRaf=requestAnimationFrame(renderIso);
+  isoRaf=requestAnimationFrame(renderIso); // always keep loop alive
 }
 
 // ═══════════════════════════════════════════
@@ -853,16 +853,13 @@ function setViewMode(mode){
     isoCanvas.style.display='block'; fpCanvas.style.display='none';
     btnIso.classList.add('vt-active'); btnFp.classList.remove('vt-active');
     camIso.classList.add('active'); camFp.classList.remove('active');
-    cancelAnimationFrame(fpRaf);
-    cancelAnimationFrame(isoRaf);
-    renderIso();
+    // ISO loop is always running — just show/hide canvas
   } else {
     isoCanvas.style.display='none'; fpCanvas.style.display='block';
     btnIso.classList.remove('vt-active'); btnFp.classList.add('vt-active');
     camIso.classList.remove('active'); camFp.classList.add('active');
-    cancelAnimationFrame(isoRaf);
     if(!renderer3) initFirstPerson();
-    if(!fpRaf) renderFP();
+    else renderFP();
   }
 }
 
@@ -973,7 +970,7 @@ function updateBuildingMap(){
     const row=document.createElement('div'); row.className='bld-row';
     row.innerHTML=`<span class="bld-num">${fl.id}</span><div class="bld-bar${isCur?' bld-cur':''}${!isAcc?' bld-lock':''}"><span class="bld-name">${fl.name}</span>${isCur?'<span class="bld-you">← you</span>':''}</div>`;
     const bar=row.querySelector('.bld-bar');
-    if(isAcc&&!isCur) bar.addEventListener('click',()=>goToFloor(fl.id-1));
+    if(isAcc&&!isCur) bar.addEventListener('click',()=>goToFloor(S.floors.findIndex(f=>f.id===fl.id)));
     else if(!isAcc) bar.addEventListener('click',showAccessDenied);
     floors.appendChild(row);
   });
@@ -985,11 +982,19 @@ function travelToRoom(room, r, c){
 
 function goToFloor(idx){
   vhsTransition(()=>{
-    S.currentFloorIdx=idx; S.currentRoom=null;
+    S.currentFloorIdx=idx;
+    S.currentRoom=null;
+    // Reset player to first valid cell on new floor
+    const floor=S.floors[idx];
+    if(floor){
+      const {grid,rows,cols}=buildRoomGrid(floor);
+      let placed=false;
+      outer: for(let r=0;r<rows;r++) for(let c=0;c<cols;c++){
+        if(grid[r]?.[c]!=null){S.player={x:c,y:r};S.playerPx={x:c*(ISO.TW*ISO.SCALE),y:r*(ISO.TH*ISO.SCALE)};placed=true;break outer;}
+      }
+    }
     updateFloorMap(); updateBuildingMap();
     showFloorBanner(idx);
-    cancelAnimationFrame(isoRaf);
-    renderIso();
   });
 }
 
@@ -1076,12 +1081,15 @@ function setupIsoInput(){
     if(keys['ArrowDown']||keys['KeyS']) ny++;
     if(keys['ArrowLeft']||keys['KeyA']) nx--;
     if(keys['ArrowRight']||keys['KeyD']) nx++;
-    nx=Math.max(0,Math.min(cols-1,nx)); ny=Math.max(0,Math.min(rows-1,ny));
-    if(ny!==S.player.y||nx!==S.player.x){
+    // clamp to grid bounds
+    nx=Math.max(0,Math.min(cols-1,nx));
+    ny=Math.max(0,Math.min(rows-1,ny));
+    // only move to cells that exist (non-null in grid)
+    const targetCell=grid[ny]?grid[ny][nx]:undefined;
+    if((ny!==S.player.y||nx!==S.player.x) && targetCell!==undefined){
       S.player={x:nx,y:ny};
       S.playerWalk+=0.4;
-      const room=grid[ny]?grid[ny][nx]:null;
-      if(room) enterRoom(room);
+      if(targetCell) enterRoom(targetCell);
       updateFloorMap();
     }
   },120);
@@ -1106,6 +1114,19 @@ async function initGame(){
   // Set first accessible floor
   const accessible=(S.charFloors[S.char?.id]||[]);
   S.currentFloorIdx=Math.max(0,(accessible[0]||1)-1);
+  // Init player at first valid cell of starting floor
+  const startFloor=S.floors[S.currentFloorIdx];
+  if(startFloor){
+    const {grid,rows,cols}=buildRoomGrid(startFloor);
+    outer: for(let r=0;r<rows;r++) for(let c=0;c<cols;c++){
+      if(grid[r]?.[c]!=null){
+        S.player={x:c,y:r};
+        S.playerPx={x:c*(ISO.TW*ISO.SCALE),y:r*(ISO.TH*ISO.SCALE)};
+        break outer;
+      }
+    }
+  }
+
   setupHUD();
   setupIsoInput();
 
