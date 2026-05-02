@@ -290,6 +290,8 @@ const $=id=>document.getElementById(id);
 function go(a,b){$(a).classList.add('off');setTimeout(()=>{$(a).classList.add('gone');$(b).classList.remove('gone');requestAnimationFrame(()=>$(b).classList.remove('off'));},900);}
 
 // ═══════ LOADING ═══════
+document.addEventListener("DOMContentLoaded",function(){
+
 (function(){
   const cv=$('lc'),ctx=cv.getContext('2d'),cur=$('lcur'),fill=$('lfill'),pct=$('lpct'),hint=$('lhint');
   let W,H,cells=[],mx=-9e4,my=-9e4,prog=0,done=false,gone=false,raf;
@@ -304,6 +306,8 @@ function go(a,b){$(a).classList.add('off');setTimeout(()=>{$(a).classList.add('g
   addEventListener('resize',resize);
   resize();requestAnimationFrame(draw);
 })();
+
+},false); // DOMContentLoaded
 
 // ═══════ BOOT ═══════
 function runBoot(){
@@ -410,12 +414,12 @@ function buildGrid(floor){
 }
 
 // Core iso drawing primitives
-function top(ctx,sx,sy,col){ctx.fillStyle=col;ctx.beginPath();ctx.moveTo(sx+TW/2,sy);ctx.lineTo(sx+TW,sy+TH/2);ctx.lineTo(sx+TW/2,sy+TH);ctx.lineTo(sx,sy+TH/2);ctx.closePath();ctx.fill();}
-function left(ctx,sx,sy,col,h){ctx.fillStyle=col;ctx.beginPath();ctx.moveTo(sx,sy+TH/2);ctx.lineTo(sx,sy+TH/2+h);ctx.lineTo(sx+TW/2,sy+TH+h);ctx.lineTo(sx+TW/2,sy+TH);ctx.closePath();ctx.fill();}
-function right(ctx,sx,sy,col,h){ctx.fillStyle=col;ctx.beginPath();ctx.moveTo(sx+TW,sy+TH/2);ctx.lineTo(sx+TW,sy+TH/2+h);ctx.lineTo(sx+TW/2,sy+TH+h);ctx.lineTo(sx+TW/2,sy+TH);ctx.closePath();ctx.fill();}
+function isoTop(ctx,sx,sy,col){ctx.fillStyle=col;ctx.beginPath();ctx.moveTo(sx+TW/2,sy);ctx.lineTo(sx+TW,sy+TH/2);ctx.lineTo(sx+TW/2,sy+TH);ctx.lineTo(sx,sy+TH/2);ctx.closePath();ctx.fill();}
+function isoLeft(ctx,sx,sy,col,h){ctx.fillStyle=col;ctx.beginPath();ctx.moveTo(sx,sy+TH/2);ctx.lineTo(sx,sy+TH/2+h);ctx.lineTo(sx+TW/2,sy+TH+h);ctx.lineTo(sx+TW/2,sy+TH);ctx.closePath();ctx.fill();}
+function isoRight(ctx,sx,sy,col,h){ctx.fillStyle=col;ctx.beginPath();ctx.moveTo(sx+TW,sy+TH/2);ctx.lineTo(sx+TW,sy+TH/2+h);ctx.lineTo(sx+TW/2,sy+TH+h);ctx.lineTo(sx+TW/2,sy+TH);ctx.closePath();ctx.fill();}
 
 function carpet(ctx,sx,sy){
-  top(ctx,sx,sy,P.fg);
+  isoTop(ctx,sx,sy,P.fg);
   ctx.fillStyle=P.fh;
   for(let r=0;r<5;r++)for(let c=0;c<7;c++){
     const ox=(r%2)*.5,tx=(c+ox)/7,ty=(r+.5)/5;
@@ -448,9 +452,9 @@ function drawRoom(ctx,room,gx,gy,connE,connS){
   const isCur=room&&room.id===S.curRoom?.id;
 
   if(!room||room.type==='empty'){
-    top(ctx,sx,sy,P.ef);
-    left(ctx,sx,sy,P.ew,WH*.7);
-    right(ctx,sx,sy,P.ew,WH*.7);
+    isoTop(ctx,sx,sy,P.ef);
+    isoLeft(ctx,sx,sy,P.ew,WH*.7);
+    isoRight(ctx,sx,sy,P.ew,WH*.7);
     // glitch flicker
     if(Math.random()<.35){
       ctx.globalAlpha=.45+Math.random()*.35;
@@ -483,7 +487,7 @@ function drawRoom(ctx,room,gx,gy,connE,connS){
   }
 
   // Wall top edge
-  top(ctx,sx,sy-WH,P.wt);
+  isoTop(ctx,sx,sy-WH,P.wt);
 
   // Front-left wall (south face - visible bottom-left)
   ctx.fillStyle=P.wl;
@@ -549,7 +553,7 @@ function drawConn(ctx,gx,gy,dir,type){
   if(dir==='e'){
     const cx=sx+TW*.84,cy=sy+TH*.08;
     const cw=TW*.38,ch=TH*.38;
-    top(ctx,cx,cy,P.cf);
+    isoTop(ctx,cx,cy,P.cf);
     ctx.fillStyle=P.cw;
     ctx.beginPath();ctx.moveTo(cx,cy+ch/2);ctx.lineTo(cx,cy+ch/2-WH*.55);ctx.lineTo(cx+cw/2,cy+ch/2-WH*.55-ch/2);ctx.lineTo(cx+cw/2,cy+ch/2-ch/2);ctx.closePath();ctx.fill();
     ctx.fillStyle=P.cf;
@@ -557,7 +561,7 @@ function drawConn(ctx,gx,gy,dir,type){
   } else {
     const cx=sx+TW*.08,cy=sy+TH*.84;
     const cw=TW*.38,ch=TH*.38;
-    top(ctx,cx,cy,P.cf);
+    isoTop(ctx,cx,cy,P.cf);
     ctx.fillStyle=P.cw;
     ctx.beginPath();ctx.moveTo(cx,cy+ch/2);ctx.lineTo(cx,cy+ch/2-WH*.55);ctx.lineTo(cx+cw/2,cy+ch/2-WH*.55-ch/2);ctx.lineTo(cx+cw/2,cy+ch/2-ch/2);ctx.closePath();ctx.fill();
     ctx.fillStyle=P.cf;
